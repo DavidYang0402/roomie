@@ -672,3 +672,60 @@ button {
   border-radius: var(--radius);
   font-variant-numeric: tabular-nums;
 }
+
+/* ---------- 完成 button (取代打勾) ---------- */
+.done-btn {
+  border: 1.5px solid var(--pine);
+  background: var(--surface);
+  color: var(--pine);
+  border-radius: 999px;
+  padding: 6px 16px;
+  font-weight: 600;
+  cursor: pointer;
+  flex: none;
+  transition: all 0.12s ease;
+}
+.done-btn:hover {
+  background: var(--pine);
+  color: #fff;
+}
+
+/* ---------- 分攤者勾選 ---------- */
+.check-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.chk {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  user-select: none;
+}
+.chk.on {
+  background: var(--pine-tint);
+  border-color: var(--pine);
+  color: var(--pine-ink);
+}
+.chk input {
+  accent-color: var(--pine);
+}
+.preview {
+  background: var(--amber-tint);
+  color: #7c5a20;
+  border-radius: var(--radius-sm);
+  padding: 10px 13px;
+  font-size: 0.9rem;
+  margin-bottom: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.preview strong {
+  font-variant-numeric: tabular-nums;
+}

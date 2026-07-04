@@ -105,12 +105,19 @@ export function Money() {
     const [amount, setAmount] = useState('')
     const [paidBy, setPaidBy] = useState(userId ?? '')
     const [spentAt, setSpentAt] = useState(todayStr())
+    const [participants, setParticipants] = useState<string[]>(members.map((m) => m.id))
     const [busy, setBusy] = useState(false)
 
     const amt = parseFloat(amount || '0')
+    const perShare = participants.length > 0 ? amt / participants.length : 0
+    const debts = participants.filter((id) => id !== paidBy)
+
+    function toggle(id: string) {
+      setParticipants((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+    }
 
     async function save() {
-      if (!desc.trim() || amt <= 0) return
+      if (!desc.trim() || amt <= 0 || participants.length === 0) return
       setBusy(true)
       try {
         await createExpense({
@@ -120,7 +127,7 @@ export function Money() {
           paid_by: paidBy,
           created_by: userId!,
           spent_at: spentAt,
-          memberIds: members.map((m) => m.id), // 全部成員均分
+          memberIds: participants,
         })
         onDone()
       } finally {
@@ -136,7 +143,7 @@ export function Money() {
             autoFocus
             value={desc}
             onChange={(e) => setDesc(e.target.value)}
-            placeholder="例：衛生紙、洗碗精"
+            placeholder="例：衛生紙、代訂飲料"
           />
         </label>
         <label className="field">
@@ -160,18 +167,48 @@ export function Money() {
             ))}
           </select>
         </label>
+
+        <div className="field">
+          <span>這筆由誰分攤</span>
+          <div className="check-list">
+            {members.map((m) => (
+              <label key={m.id} className={participants.includes(m.id) ? 'chk on' : 'chk'}>
+                <input
+                  type="checkbox"
+                  checked={participants.includes(m.id)}
+                  onChange={() => toggle(m.id)}
+                />
+                {m.display_name}
+              </label>
+            ))}
+          </div>
+          <span className="hint">只勾一人 = 他欠付款人全額；勾多人 = 平均分攤。</span>
+        </div>
+
         <label className="field">
           <span>日期</span>
           <input type="date" value={spentAt} onChange={(e) => setSpentAt(e.target.value)} />
         </label>
-        <p className="hint">
-          這筆會由 {members.length} 人均分，每人 ${money(amt / Math.max(members.length, 1))}。
-        </p>
+
+        {amt > 0 && participants.length > 0 && (
+          <div className="preview">
+            {debts.length === 0 ? (
+              <span className="muted">由付款人自己分攤，沒有人欠款。</span>
+            ) : (
+              debts.map((id) => (
+                <div key={id}>
+                  {memberName(id)} 欠 {memberName(paidBy)} <strong>${money(perShare)}</strong>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
         <div className="modal-actions">
           <Button variant="ghost" onClick={onClose}>
             取消
           </Button>
-          <Button onClick={save} disabled={busy || !desc.trim() || amt <= 0}>
+          <Button onClick={save} disabled={busy || !desc.trim() || amt <= 0 || participants.length === 0}>
             {busy ? '記錄中…' : '記一筆'}
           </Button>
         </div>

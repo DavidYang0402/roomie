@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useStore } from '../store'
 import { completeTask, createLaundry, deleteTask } from '../lib/api'
 import { dueState, friendlyDate, todayStr } from '../lib/time'
+import { actionFor } from '../lib/tasks'
 import { Button, Empty, Modal } from './ui'
 import type { Task } from '../lib/types'
 
@@ -39,6 +40,7 @@ export function Laundry() {
         ) : (
           laundry.map((t) => {
             const state = dueState(t.due_at)
+            const action = actionFor(t, userId)
             return (
               <div className="row" key={t.id}>
                 <div className="row-main">
@@ -54,9 +56,11 @@ export function Laundry() {
                   </div>
                 </div>
                 <div className="row-actions">
-                  <button className="check" aria-label="洗好了" onClick={() => done(t)}>
-                    ✓
-                  </button>
+                  {action === 'complete' && (
+                    <button className="done-btn" onClick={() => done(t)}>
+                      完成
+                    </button>
+                  )}
                   <button className="link-danger" aria-label="刪除" onClick={() => remove(t)}>
                     刪
                   </button>

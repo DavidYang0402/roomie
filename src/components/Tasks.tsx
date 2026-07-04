@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useStore } from '../store'
 import { claimTask, completeTask, createTask, deleteTask } from '../lib/api'
 import { dueState, friendlyDate, todayStr } from '../lib/time'
+import { actionFor } from '../lib/tasks'
 import { Button, Empty, Modal, Segmented } from './ui'
 import type { Task } from '../lib/types'
 
@@ -56,7 +57,8 @@ export function Tasks() {
         ) : (
           shown.map((t) => {
             const state = dueState(t.due_at)
-            const claimable = t.scope === 'public' && !t.assignee_id
+            const action = actionFor(t, userId)
+            const canDelete = t.created_by === userId || t.assignee_id === userId
             return (
               <div className="row" key={t.id}>
                 <div className="row-main">
@@ -72,18 +74,21 @@ export function Tasks() {
                   </div>
                 </div>
                 <div className="row-actions">
-                  {claimable ? (
+                  {action === 'claim' && (
                     <Button variant="quiet" onClick={() => claim(t)}>
                       我來
                     </Button>
-                  ) : (
-                    <button className="check" aria-label="完成" onClick={() => done(t)}>
-                      ✓
+                  )}
+                  {action === 'complete' && (
+                    <button className="done-btn" onClick={() => done(t)}>
+                      完成
                     </button>
                   )}
-                  <button className="link-danger" aria-label="刪除" onClick={() => remove(t)}>
-                    刪
-                  </button>
+                  {canDelete && (
+                    <button className="link-danger" aria-label="刪除" onClick={() => remove(t)}>
+                      刪
+                    </button>
+                  )}
                 </div>
               </div>
             )

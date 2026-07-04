@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useStore } from '../store'
 import { completeTask, claimTask } from '../lib/api'
 import { dueState, friendlyDate } from '../lib/time'
+import { actionFor } from '../lib/tasks'
 import { Button, Empty } from './ui'
 import type { Task } from '../lib/types'
 
@@ -55,7 +56,14 @@ export function Home() {
           <Empty>沒有逾期的事 👍</Empty>
         ) : (
           overdue.map((t) => (
-            <Row key={t.id} t={t} who={memberName(t.assignee_id)} onDone={() => done(t)} />
+            <Row
+              key={t.id}
+              t={t}
+              who={memberName(t.assignee_id)}
+              userId={userId}
+              onDone={() => done(t)}
+              onClaim={() => claim(t)}
+            />
           ))
         )}
       </Section>
@@ -65,7 +73,14 @@ export function Home() {
           <Empty>今天沒有排定的事</Empty>
         ) : (
           today.map((t) => (
-            <Row key={t.id} t={t} who={memberName(t.assignee_id)} onDone={() => done(t)} />
+            <Row
+              key={t.id}
+              t={t}
+              who={memberName(t.assignee_id)}
+              userId={userId}
+              onDone={() => done(t)}
+              onClaim={() => claim(t)}
+            />
           ))
         )}
       </Section>
@@ -94,7 +109,14 @@ export function Home() {
           <Empty>目前沒有掛在你身上的事</Empty>
         ) : (
           mine.map((t) => (
-            <Row key={t.id} t={t} who="你" onDone={() => done(t)} />
+            <Row
+              key={t.id}
+              t={t}
+              who="你"
+              userId={userId}
+              onDone={() => done(t)}
+              onClaim={() => claim(t)}
+            />
           ))
         )}
       </Section>
@@ -125,15 +147,28 @@ function Section({
   )
 }
 
-function Row({ t, who, onDone }: { t: Task; who: string; onDone: () => void }) {
+function Row({
+  t,
+  who,
+  userId,
+  onDone,
+  onClaim,
+}: {
+  t: Task
+  who: string
+  userId: string | null
+  onDone: () => void
+  onClaim: () => void
+}) {
   const state = dueState(t.due_at)
+  const action = actionFor(t, userId)
   return (
     <div className="row">
       <div className="row-main">
         <span className={`dot ${state}`} />
         <div>
           <div className="row-title">
-            {t.category === 'laundry' && <span className="tag">洗衣</span>}
+            {t.category === 'laundry' && <span className="tag laundry">洗衣</span>}
             {t.title}
           </div>
           <div className="row-sub">
@@ -141,9 +176,16 @@ function Row({ t, who, onDone }: { t: Task; who: string; onDone: () => void }) {
           </div>
         </div>
       </div>
-      <button className="check" aria-label="標記完成" onClick={onDone}>
-        ✓
-      </button>
+      {action === 'complete' && (
+        <button className="done-btn" onClick={onDone}>
+          完成
+        </button>
+      )}
+      {action === 'claim' && (
+        <Button variant="quiet" onClick={onClaim}>
+          我來
+        </Button>
+      )}
     </div>
   )
 }
