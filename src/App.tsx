@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useStore } from './store'
-import { signOut, regenerateInviteCode } from './lib/api'
-import { Button, Modal } from './components/ui'
+import { signOut, createInvite } from './lib/api'
+import { Button, Modal, Segmented } from './components/ui'
 import { dueState } from './lib/time'
 import { Login } from './components/Login'
 import { JoinHousehold } from './components/JoinHousehold'
@@ -20,9 +20,12 @@ const TABS: { key: Tab; label: string; icon: string }[] = [
 ]
 
 export default function App() {
-  const { loading, session, household, tasks, laundry, reloadHousehold } = useStore()
+  const { loading, session, household, tasks, laundry } = useStore()
   const [tab, setTab] = useState<Tab>('home')
   const [showInvite, setShowInvite] = useState(false)
+  const [ttl, setTtl] = useState(30)
+  const [invite, setInvite] = useState<{ code: string; expires_at: string } | null>(null)
+  const [inviteBusy, setInviteBusy] = useState(false)
 
   // 首頁徽章：逾期 + 今天到期的件數
   const homeBadge = useMemo(() => {
@@ -33,14 +36,18 @@ export default function App() {
     }).length
   }, [tasks, laundry])
 
-  async function regenerateCode() {
+  async function genInvite() {
     if (!household) return
-    if (
-      !confirm('重新產生後，舊的邀請碼會立刻失效（之前拿到舊碼但還沒加入的人就進不來了）。確定要換一組？')
-    )
-      return
-    await regenerateInviteCode(household.id)
-    reloadHousehold()
+    setInviteBusy(true)
+    try {
+      setInvite(await createInvite(household.id, ttl))
+    } finally {
+      setInviteBusy(false)
+    }
+  }
+  function closeInvite() {
+    setShowInvite(false)
+    setInvite(null)
   }
 
   if (loading) {
@@ -79,22 +86,49 @@ export default function App() {
         </button>
       </div>
 
-      <Modal open={showInvite} title="邀請室友" onClose={() => setShowInvite(false)}>
-        <p className="muted small" style={{ marginBottom: 12 }}>
-          把這組邀請碼給室友，他註冊後在「用邀請碼加入」輸入就能進來。只有拿到碼的人才進得來。
-        </p>
-        <div className="code-box">{household.invite_code}</div>
-        <div className="modal-actions" style={{ marginTop: 0 }}>
-          <Button variant="ghost" onClick={regenerateCode}>
-            重新產生
-          </Button>
-          <Button variant="quiet" onClick={() => navigator.clipboard?.writeText(household.invite_code)}>
-            複製邀請碼
-          </Button>
-        </div>
-        <p className="hint" style={{ marginTop: 10 }}>
-          若邀請碼不小心外流，按「重新產生」換一組，舊碼會立刻失效。
-        </p>
+      <Modal open={showInvite} title="邀請室友" onClose={closeInvite}>
+        {!invite ? (
+          <>
+            <p className="muted small" style={{ marginBottom: 14 }}>
+              產生一組限時邀請碼給室友。過期或被用過一次後就自動失效，最安全。
+            </p>
+            <div className="field">
+              <span>有效時間</span>
+              <Segmented
+                value={String(ttl)}
+                onChange={(v) => setTtl(Number(v))}
+                options={[
+                  { value: '10', label: '10 分鐘' },
+                  { value: '30', label: '30 分鐘' },
+                  { value: '60', label: '1 小時' },
+                ]}
+              />
+            </div>
+            <Button onClick={genInvite} disabled={inviteBusy}>
+              {inviteBusy ? '產生中…' : '產生邀請碼'}
+            </Button>
+          </>
+        ) : (
+          <>
+            <div className="code-box">{invite.code}</div>
+            <p className="hint" style={{ textAlign: 'center' }}>
+              有效至{' '}
+              {new Date(invite.expires_at).toLocaleTimeString('zh-TW', {
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+              ，一次有效、逾時或用過就失效。
+            </p>
+            <div className="modal-actions" style={{ marginTop: 8 }}>
+              <Button variant="ghost" onClick={() => setInvite(null)}>
+                重新產生
+              </Button>
+              <Button variant="quiet" onClick={() => navigator.clipboard?.writeText(invite.code)}>
+                複製
+              </Button>
+            </div>
+          </>
+        )}
       </Modal>
 
       <main className="content">

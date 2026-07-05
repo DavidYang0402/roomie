@@ -12,7 +12,6 @@ export function JoinHousehold() {
   const [name, setName] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
-  const [createdCode, setCreatedCode] = useState<string | null>(null)
 
   async function join() {
     if (!code.trim()) return
@@ -32,37 +31,13 @@ export function JoinHousehold() {
     setBusy(true)
     setErr(null)
     try {
-      const res = await createHousehold(name)
-      setCreatedCode(res.invite_code)
-      // 讓使用者先看到邀請碼，再進去
+      await createHousehold(name)
+      reloadHousehold() // 建好後直接進入；要加室友時在 app 內用「邀請」產生限時碼
     } catch (e: any) {
       setErr(e?.message ?? '建立失敗')
     } finally {
       setBusy(false)
     }
-  }
-
-  if (createdCode) {
-    return (
-      <div className="login">
-        <div className="login-card">
-          <h1 style={{ marginBottom: 6 }}>家建好了 🎉</h1>
-          <p className="brand-sub">把這組邀請碼給室友，他註冊後輸入就能加入。</p>
-          <div className="code-box">{createdCode}</div>
-          <Button
-            onClick={() => {
-              navigator.clipboard?.writeText(createdCode)
-            }}
-            variant="quiet"
-          >
-            複製邀請碼
-          </Button>
-          <div style={{ marginTop: 16 }}>
-            <Button onClick={reloadHousehold}>進入</Button>
-          </div>
-        </div>
-      </div>
-    )
   }
 
   return (

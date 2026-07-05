@@ -27,44 +27,49 @@ export async function signOut() {
 }
 
 // ---------- 建立 / 加入家庭 ----------
-export async function createHousehold(name: string): Promise<{ id: Uuid; invite_code: string }> {
+export async function createHousehold(name: string): Promise<Uuid> {
   const { data, error } = await supabase.rpc('create_household', { hh_name: name })
   if (error) throw error
-  return data as { id: Uuid; invite_code: string }
+  return data as Uuid
 }
 
 export async function joinHousehold(code: string): Promise<Uuid> {
   const { data, error } = await supabase.rpc('join_household', { code })
   if (error) {
-    if (error.message.includes('INVALID_CODE')) throw new Error('邀請碼不存在')
+    if (error.message.includes('INVALID_OR_EXPIRED')) throw new Error('邀請碼不存在、已過期或已被使用')
     throw error
   }
   return data as Uuid
 }
 
-export async function regenerateInviteCode(householdId: Uuid): Promise<string> {
-  const { data, error } = await supabase.rpc('regenerate_invite_code', { hh_id: householdId })
+export async function createInvite(
+  householdId: Uuid,
+  ttlMinutes: number,
+): Promise<{ code: string; expires_at: string }> {
+  const { data, error } = await supabase.rpc('create_invite', {
+    hh_id: householdId,
+    ttl_minutes: ttlMinutes,
+  })
   if (error) throw error
-  return data as string
+  return data as { code: string; expires_at: string }
 }
 
 // ---------- Household ----------
 export interface HouseholdInfo {
   id: Uuid
   name: string
-  invite_code: string
 }
 
 export async function getMyHousehold(): Promise<HouseholdInfo | null> {
   const { data, error } = await supabase
     .from('household_members')
-    .select('household_id, households(id, name, invite_code)')
+    .select('household_id, households(id, name)')
     .limit(1)
     .maybeSingle()
   if (error) throw error
   if (!data) return null
   const h = data.households as unknown as HouseholdInfo
-  return { id: h.id, name: h.name, invite_code: h.invite_code }
+  return { id: h.id, name: h.name }
 }
 
 export async function getMembers(householdId: Uuid): Promise<Member[]> {
