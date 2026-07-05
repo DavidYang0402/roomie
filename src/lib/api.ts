@@ -105,6 +105,18 @@ export async function createTask(t: NewTask) {
   if (error) throw error
 }
 
+export interface TaskEdit {
+  title: string
+  scope: 'personal' | 'public'
+  due_at: string | null
+  assignee_id: Uuid | null
+}
+
+export async function updateTask(id: Uuid, patch: TaskEdit) {
+  const { error } = await supabase.from('tasks').update(patch).eq('id', id)
+  if (error) throw error
+}
+
 // 先搶先贏：只有 assignee_id 還是 null 時才認領得到
 export async function claimTask(id: Uuid, userId: Uuid): Promise<boolean> {
   const { data, error } = await supabase
@@ -167,6 +179,18 @@ export async function createLaundry(l: NewLaundry) {
   if (error) throw error
 }
 
+export interface LaundryEdit {
+  title: string
+  recurrence_days: number
+  due_at: string
+  assignee_id: Uuid | null
+}
+
+export async function updateLaundry(id: Uuid, patch: LaundryEdit) {
+  const { error } = await supabase.from('tasks').update(patch).eq('id', id)
+  if (error) throw error
+}
+
 export async function getLaundryConfig(householdId: Uuid): Promise<LaundryConfig | null> {
   const { data, error } = await supabase
     .from('laundry_config')
@@ -200,25 +224,24 @@ export interface NewExpense {
 }
 
 export async function createExpense(e: NewExpense) {
-  const { data, error } = await supabase
-    .from('expenses')
-    .insert({
-      household_id: e.household_id,
-      description: e.description,
-      amount: e.amount,
-      paid_by: e.paid_by,
-      created_by: e.created_by,
-      spent_at: e.spent_at,
-    })
-    .select('id')
-    .single()
+  // 自己產生 id，插入時不做 RETURNING，這樣在「只有相關人看得到」的 RLS 下也不會卡
+  const id = crypto.randomUUID()
+  const { error } = await supabase.from('expenses').insert({
+    id,
+    household_id: e.household_id,
+    description: e.description,
+    amount: e.amount,
+    paid_by: e.paid_by,
+    created_by: e.created_by,
+    spent_at: e.spent_at,
+  })
   if (error) throw error
 
   // 均分：把 amount 平均攤到每個人，最後一人吸收餘數以確保加總等於 amount
   const n = e.memberIds.length
   const base = Math.floor((e.amount / n) * 100) / 100
   const splits = e.memberIds.map((uid, i) => ({
-    expense_id: data.id as string,
+    expense_id: id,
     user_id: uid,
     share: i === n - 1 ? Math.round((e.amount - base * (n - 1)) * 100) / 100 : base,
   }))

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useStore } from '../store'
-import { claimTask, completeTask, createTask, deleteTask } from '../lib/api'
-import { dueState, friendlyDate, todayStr } from '../lib/time'
+import { claimTask, completeTask, createTask, updateTask, deleteTask } from '../lib/api'
+import { dueState, friendlyDate, todayStr, dateOf } from '../lib/time'
 import { actionFor } from '../lib/tasks'
 import { Button, Empty, Modal, Segmented } from './ui'
 import type { Task } from '../lib/types'
@@ -12,6 +12,7 @@ export function Tasks() {
   const { tasks, userId, memberName, members, household, refresh } = useStore()
   const [filter, setFilter] = useState<Filter>('all')
   const [adding, setAdding] = useState(false)
+  const [editing, setEditing] = useState<Task | null>(null)
 
   const shown = useMemo(() => {
     if (filter === 'mine') return tasks.filter((t) => t.assignee_id === userId)
@@ -58,7 +59,7 @@ export function Tasks() {
           shown.map((t) => {
             const state = dueState(t.due_at)
             const action = actionFor(t, userId)
-            const canDelete = t.created_by === userId || t.assignee_id === userId
+            const canManage = t.created_by === userId || t.assignee_id === userId
             return (
               <div className="row" key={t.id}>
                 <div className="row-main">
@@ -84,7 +85,12 @@ export function Tasks() {
                       完成
                     </button>
                   )}
-                  {canDelete && (
+                  {canManage && (
+                    <button className="link-quiet inline" aria-label="編輯" onClick={() => setEditing(t)}>
+                      編輯
+                    </button>
+                  )}
+                  {canManage && (
                     <button className="link-danger" aria-label="刪除" onClick={() => remove(t)}>
                       刪
                     </button>
@@ -96,11 +102,16 @@ export function Tasks() {
         )}
       </div>
 
-      {adding && household && (
-        <AddTask
-          onClose={() => setAdding(false)}
+      {(adding || editing) && household && (
+        <TaskForm
+          task={editing}
+          onClose={() => {
+            setAdding(false)
+            setEditing(null)
+          }}
           onDone={async () => {
             setAdding(false)
+            setEditing(null)
             await refresh()
           }}
         />
@@ -108,26 +119,42 @@ export function Tasks() {
     </div>
   )
 
-  function AddTask({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
-    const [title, setTitle] = useState('')
-    const [scope, setScope] = useState<'public' | 'personal'>('public')
-    const [due, setDue] = useState(todayStr())
-    const [assignee, setAssignee] = useState<string>('') // '' = 未指定
+  // task 有值 = 編輯；沒有 = 新增
+  function TaskForm({
+    task,
+    onClose,
+    onDone,
+  }: {
+    task: Task | null
+    onClose: () => void
+    onDone: () => void
+  }) {
+    const isEdit = !!task
+    const [title, setTitle] = useState(task?.title ?? '')
+    const [scope, setScope] = useState<'public' | 'personal'>(
+      (task?.scope as 'public' | 'personal') ?? 'public',
+    )
+    const [due, setDue] = useState(dateOf(task?.due_at ?? null) ?? todayStr())
+    const [assignee, setAssignee] = useState<string>(task?.assignee_id ?? '')
     const [busy, setBusy] = useState(false)
 
     async function save() {
       if (!title.trim()) return
       setBusy(true)
       try {
-        await createTask({
-          household_id: household!.id,
-          title: title.trim(),
-          scope,
-          due_at: due || null,
-          // 個人任務預設掛自己；公共任務可留空給人認領
-          assignee_id: scope === 'personal' ? userId : assignee || null,
-          created_by: userId!,
-        })
+        const assignee_id = scope === 'personal' ? userId : assignee || null
+        if (isEdit) {
+          await updateTask(task!.id, { title: title.trim(), scope, due_at: due || null, assignee_id })
+        } else {
+          await createTask({
+            household_id: household!.id,
+            title: title.trim(),
+            scope,
+            due_at: due || null,
+            assignee_id,
+            created_by: userId!,
+          })
+        }
         onDone()
       } finally {
         setBusy(false)
@@ -135,7 +162,7 @@ export function Tasks() {
     }
 
     return (
-      <Modal open title="新增待辦" onClose={onClose}>
+      <Modal open title={isEdit ? '編輯待辦' : '新增待辦'} onClose={onClose}>
         <label className="field">
           <span>要做什麼</span>
           <input
@@ -182,7 +209,7 @@ export function Tasks() {
             取消
           </Button>
           <Button onClick={save} disabled={busy || !title.trim()}>
-            {busy ? '新增中…' : '新增'}
+            {busy ? '儲存中…' : isEdit ? '儲存' : '新增'}
           </Button>
         </div>
       </Modal>

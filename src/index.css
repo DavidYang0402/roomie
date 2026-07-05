@@ -729,3 +729,9 @@ button {
 .preview strong {
   font-variant-numeric: tabular-nums;
 }
+
+/* 列內「編輯」小按鈕 */
+.link-quiet.inline {
+  margin-left: 0;
+  font-size: 0.82rem;
+}

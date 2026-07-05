@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useStore } from '../store'
-import { completeTask, createLaundry, deleteTask } from '../lib/api'
-import { dueState, friendlyDate, todayStr } from '../lib/time'
+import { completeTask, createLaundry, updateLaundry, deleteTask } from '../lib/api'
+import { dueState, friendlyDate, todayStr, dateOf } from '../lib/time'
 import { actionFor } from '../lib/tasks'
 import { Button, Empty, Modal } from './ui'
 import type { Task } from '../lib/types'
@@ -9,6 +9,7 @@ import type { Task } from '../lib/types'
 export function Laundry() {
   const { laundry, userId, memberName, members, household, laundryConfig, refresh } = useStore()
   const [adding, setAdding] = useState(false)
+  const [editing, setEditing] = useState<Task | null>(null)
 
   async function done(t: Task) {
     await completeTask(t.id)
@@ -61,6 +62,9 @@ export function Laundry() {
                       完成
                     </button>
                   )}
+                  <button className="link-quiet inline" aria-label="編輯" onClick={() => setEditing(t)}>
+                    編輯
+                  </button>
                   <button className="link-danger" aria-label="刪除" onClick={() => remove(t)}>
                     刪
                   </button>
@@ -71,11 +75,16 @@ export function Laundry() {
         )}
       </div>
 
-      {adding && household && (
-        <AddLaundry
-          onClose={() => setAdding(false)}
+      {(adding || editing) && household && (
+        <LaundryForm
+          task={editing}
+          onClose={() => {
+            setAdding(false)
+            setEditing(null)
+          }}
           onDone={async () => {
             setAdding(false)
+            setEditing(null)
             await refresh()
           }}
         />
@@ -83,25 +92,44 @@ export function Laundry() {
     </div>
   )
 
-  function AddLaundry({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
-    const [title, setTitle] = useState('洗衣服')
-    const [days, setDays] = useState(3)
-    const [start, setStart] = useState(todayStr())
-    const [assignee, setAssignee] = useState<string>(userId ?? '')
+  // task 有值 = 編輯；沒有 = 新增
+  function LaundryForm({
+    task,
+    onClose,
+    onDone,
+  }: {
+    task: Task | null
+    onClose: () => void
+    onDone: () => void
+  }) {
+    const isEdit = !!task
+    const [title, setTitle] = useState(task?.title ?? '洗衣服')
+    const [days, setDays] = useState(task?.recurrence_days ?? 3)
+    const [start, setStart] = useState(dateOf(task?.due_at ?? null) ?? todayStr())
+    const [assignee, setAssignee] = useState<string>(task?.assignee_id ?? userId ?? '')
     const [busy, setBusy] = useState(false)
 
     async function save() {
       if (!title.trim() || days < 1) return
       setBusy(true)
       try {
-        await createLaundry({
-          household_id: household!.id,
-          title: title.trim(),
-          recurrence_days: days,
-          start_date: start,
-          assignee_id: assignee || null,
-          created_by: userId!,
-        })
+        if (isEdit) {
+          await updateLaundry(task!.id, {
+            title: title.trim(),
+            recurrence_days: days,
+            due_at: start,
+            assignee_id: assignee || null,
+          })
+        } else {
+          await createLaundry({
+            household_id: household!.id,
+            title: title.trim(),
+            recurrence_days: days,
+            start_date: start,
+            assignee_id: assignee || null,
+            created_by: userId!,
+          })
+        }
         onDone()
       } finally {
         setBusy(false)
@@ -109,13 +137,13 @@ export function Laundry() {
     }
 
     return (
-      <Modal open title="排洗衣" onClose={onClose}>
+      <Modal open title={isEdit ? '編輯洗衣' : '排洗衣'} onClose={onClose}>
         <label className="field">
           <span>名稱</span>
           <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="洗衣服" />
         </label>
         <label className="field">
-          <span>從哪天開始</span>
+          <span>{isEdit ? '下一次是哪天' : '從哪天開始'}</span>
           <input type="date" value={start} onChange={(e) => setStart(e.target.value)} />
         </label>
         <label className="field">
@@ -126,7 +154,7 @@ export function Laundry() {
             value={days}
             onChange={(e) => setDays(parseInt(e.target.value || '1', 10))}
           />
-          <span className="hint">洗好打勾後，會從完成日 + {days} 天自動排下一次。</span>
+          <span className="hint">洗好按完成後，會從完成日 + {days} 天自動排下一次。</span>
         </label>
         <label className="field">
           <span>誰洗（洗衣是公共的，大家都看得到）</span>
@@ -144,7 +172,7 @@ export function Laundry() {
             取消
           </Button>
           <Button onClick={save} disabled={busy || !title.trim()}>
-            {busy ? '建立中…' : '建立'}
+            {busy ? '儲存中…' : isEdit ? '儲存' : '建立'}
           </Button>
         </div>
       </Modal>

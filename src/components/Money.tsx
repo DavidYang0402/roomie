@@ -182,7 +182,7 @@ export function Money() {
               </label>
             ))}
           </div>
-          <span className="hint">只勾一人 = 他欠付款人全額；勾多人 = 平均分攤。</span>
+          <span className="hint">只勾一人 = 他欠付款人全額；勾多人 = 平均分攤。只有付款人和被勾選的人看得到這筆。</span>
         </div>
 
         <label className="field">
