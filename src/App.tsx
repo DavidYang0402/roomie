@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useStore } from './store'
-import { signOut } from './lib/api'
+import { signOut, regenerateInviteCode } from './lib/api'
 import { Button, Modal } from './components/ui'
 import { dueState } from './lib/time'
 import { Login } from './components/Login'
@@ -20,7 +20,7 @@ const TABS: { key: Tab; label: string; icon: string }[] = [
 ]
 
 export default function App() {
-  const { loading, session, household, tasks, laundry } = useStore()
+  const { loading, session, household, tasks, laundry, reloadHousehold } = useStore()
   const [tab, setTab] = useState<Tab>('home')
   const [showInvite, setShowInvite] = useState(false)
 
@@ -32,6 +32,16 @@ export default function App() {
       return s === 'overdue' || s === 'today'
     }).length
   }, [tasks, laundry])
+
+  async function regenerateCode() {
+    if (!household) return
+    if (
+      !confirm('重新產生後，舊的邀請碼會立刻失效（之前拿到舊碼但還沒加入的人就進不來了）。確定要換一組？')
+    )
+      return
+    await regenerateInviteCode(household.id)
+    reloadHousehold()
+  }
 
   if (loading) {
     return (
@@ -74,9 +84,17 @@ export default function App() {
           把這組邀請碼給室友，他註冊後在「用邀請碼加入」輸入就能進來。只有拿到碼的人才進得來。
         </p>
         <div className="code-box">{household.invite_code}</div>
-        <Button variant="quiet" onClick={() => navigator.clipboard?.writeText(household.invite_code)}>
-          複製邀請碼
-        </Button>
+        <div className="modal-actions" style={{ marginTop: 0 }}>
+          <Button variant="ghost" onClick={regenerateCode}>
+            重新產生
+          </Button>
+          <Button variant="quiet" onClick={() => navigator.clipboard?.writeText(household.invite_code)}>
+            複製邀請碼
+          </Button>
+        </div>
+        <p className="hint" style={{ marginTop: 10 }}>
+          若邀請碼不小心外流，按「重新產生」換一組，舊碼會立刻失效。
+        </p>
       </Modal>
 
       <main className="content">

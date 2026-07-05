@@ -42,6 +42,12 @@ export async function joinHousehold(code: string): Promise<Uuid> {
   return data as Uuid
 }
 
+export async function regenerateInviteCode(householdId: Uuid): Promise<string> {
+  const { data, error } = await supabase.rpc('regenerate_invite_code', { hh_id: householdId })
+  if (error) throw error
+  return data as string
+}
+
 // ---------- Household ----------
 export interface HouseholdInfo {
   id: Uuid
