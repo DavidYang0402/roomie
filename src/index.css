@@ -693,19 +693,21 @@ button {
 /* ---------- 分攤者勾選 ---------- */
 .check-list {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 8px;
 }
 .chk {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 7px 12px;
+  gap: 8px;
+  padding: 10px 12px;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: 0.92rem;
   user-select: none;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .chk.on {
   background: var(--pine-tint);
@@ -714,6 +716,7 @@ button {
 }
 .chk input {
   accent-color: var(--pine);
+  flex: none;
 }
 .preview {
   background: var(--amber-tint);
