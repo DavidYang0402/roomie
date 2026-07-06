@@ -1,6 +1,12 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../store'
-import { createExpense, deleteExpense, settleUp } from '../lib/api'
+import {
+  createExpense,
+  updateExpense,
+  deleteExpense,
+  getExpenseParticipants,
+  settleUp,
+} from '../lib/api'
 import { friendlyDate, money, todayStr } from '../lib/time'
 import { Button, Empty, Modal } from './ui'
 import type { Expense } from '../lib/types'
@@ -8,6 +14,7 @@ import type { Expense } from '../lib/types'
 export function Money() {
   const { expenses, balances, members, userId, memberName, household, refresh } = useStore()
   const [adding, setAdding] = useState(false)
+  const [editing, setEditing] = useState<Expense | null>(null)
 
   // 兩人情境：淨額為正的人是債權人，為負的是債務人
   const summary = useMemo(() => {
@@ -21,7 +28,11 @@ export function Money() {
 
   async function settle() {
     if (!summary || !household) return
-    if (!confirm(`記錄一筆結清：${memberName(summary.from)} 付給 ${memberName(summary.to)} $${money(summary.amount)}？`))
+    if (
+      !confirm(
+        `記錄一筆結清：${memberName(summary.from)} 付給 ${memberName(summary.to)} $${money(summary.amount)}？`,
+      )
+    )
       return
     await settleUp({
       household_id: household.id,
@@ -67,32 +78,47 @@ export function Money() {
         {expenses.length === 0 ? (
           <Empty>還沒有任何花費。誰幫忙買了東西就「記一筆」。</Empty>
         ) : (
-          expenses.map((e) => (
-            <div className="row" key={e.id}>
-              <div className="row-main">
-                <div>
-                  <div className="row-title">{e.description}</div>
-                  <div className="row-sub">
-                    {friendlyDate(e.spent_at)} · {memberName(e.paid_by)} 先付
+          expenses.map((e) => {
+            const canEdit = e.paid_by === userId || e.created_by === userId
+            return (
+              <div className="row" key={e.id}>
+                <div className="row-main">
+                  <div className="row-text">
+                    <div className="row-title">{e.description}</div>
+                    <div className="row-sub">
+                      {friendlyDate(e.spent_at)} · {memberName(e.paid_by)} 先付
+                    </div>
                   </div>
                 </div>
+                <div className="row-actions">
+                  <span className="amount">${money(e.amount)}</span>
+                  {canEdit && (
+                    <button className="link-quiet inline" onClick={() => setEditing(e)}>
+                      編輯
+                    </button>
+                  )}
+                  {canEdit && (
+                    <button className="link-danger" aria-label="刪除" onClick={() => remove(e)}>
+                      刪
+                    </button>
+                  )}
+                </div>
               </div>
-              <div className="row-actions">
-                <span className="amount">${money(e.amount)}</span>
-                <button className="link-danger" aria-label="刪除" onClick={() => remove(e)}>
-                  刪
-                </button>
-              </div>
-            </div>
-          ))
+            )
+          })
         )}
       </div>
 
-      {adding && household && (
-        <AddExpense
-          onClose={() => setAdding(false)}
+      {(adding || editing) && household && (
+        <ExpenseForm
+          expense={editing}
+          onClose={() => {
+            setAdding(false)
+            setEditing(null)
+          }}
           onDone={async () => {
             setAdding(false)
+            setEditing(null)
             await refresh()
           }}
         />
@@ -100,13 +126,32 @@ export function Money() {
     </div>
   )
 
-  function AddExpense({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
-    const [desc, setDesc] = useState('')
-    const [amount, setAmount] = useState('')
-    const [paidBy, setPaidBy] = useState(userId ?? '')
-    const [spentAt, setSpentAt] = useState(todayStr())
-    const [participants, setParticipants] = useState<string[]>(members.map((m) => m.id))
+  // expense 有值 = 編輯；沒有 = 新增
+  function ExpenseForm({
+    expense,
+    onClose,
+    onDone,
+  }: {
+    expense: Expense | null
+    onClose: () => void
+    onDone: () => void
+  }) {
+    const isEdit = !!expense
+    const [desc, setDesc] = useState(expense?.description ?? '')
+    const [amount, setAmount] = useState(expense ? String(expense.amount) : '')
+    const [paidBy, setPaidBy] = useState(expense?.paid_by ?? userId ?? '')
+    const [spentAt, setSpentAt] = useState(expense?.spent_at ?? todayStr())
+    const [participants, setParticipants] = useState<string[]>(
+      expense ? [] : members.map((m) => m.id),
+    )
     const [busy, setBusy] = useState(false)
+
+    // 編輯時載入原本的分攤者，預先勾好
+    useEffect(() => {
+      if (expense) {
+        getExpenseParticipants(expense.id).then(setParticipants)
+      }
+    }, [expense])
 
     const amt = parseFloat(amount || '0')
     const perShare = participants.length > 0 ? amt / participants.length : 0
@@ -120,15 +165,25 @@ export function Money() {
       if (!desc.trim() || amt <= 0 || participants.length === 0) return
       setBusy(true)
       try {
-        await createExpense({
-          household_id: household!.id,
-          description: desc.trim(),
-          amount: amt,
-          paid_by: paidBy,
-          created_by: userId!,
-          spent_at: spentAt,
-          memberIds: participants,
-        })
+        if (isEdit) {
+          await updateExpense(expense!.id, {
+            description: desc.trim(),
+            amount: amt,
+            paid_by: paidBy,
+            spent_at: spentAt,
+            memberIds: participants,
+          })
+        } else {
+          await createExpense({
+            household_id: household!.id,
+            description: desc.trim(),
+            amount: amt,
+            paid_by: paidBy,
+            created_by: userId!,
+            spent_at: spentAt,
+            memberIds: participants,
+          })
+        }
         onDone()
       } finally {
         setBusy(false)
@@ -136,7 +191,7 @@ export function Money() {
     }
 
     return (
-      <Modal open title="記一筆" onClose={onClose}>
+      <Modal open title={isEdit ? '編輯花費' : '記一筆'} onClose={onClose}>
         <label className="field">
           <span>買了什麼</span>
           <input
@@ -166,6 +221,7 @@ export function Money() {
               </option>
             ))}
           </select>
+          <span className="hint">記帳的是你，但付錢的可以選任何成員（A 付或 B 付都行）。</span>
         </label>
 
         <div className="field">
@@ -182,7 +238,9 @@ export function Money() {
               </label>
             ))}
           </div>
-          <span className="hint">只勾一人 = 他欠付款人全額；勾多人 = 平均分攤。只有付款人和被勾選的人看得到這筆。</span>
+          <span className="hint">
+            只勾一人 = 他欠付款人全額；勾多人 = 平均分攤。只有付款人和被勾選的人看得到這筆。
+          </span>
         </div>
 
         <label className="field">
@@ -208,8 +266,11 @@ export function Money() {
           <Button variant="ghost" onClick={onClose}>
             取消
           </Button>
-          <Button onClick={save} disabled={busy || !desc.trim() || amt <= 0 || participants.length === 0}>
-            {busy ? '記錄中…' : '記一筆'}
+          <Button
+            onClick={save}
+            disabled={busy || !desc.trim() || amt <= 0 || participants.length === 0}
+          >
+            {busy ? '儲存中…' : isEdit ? '儲存' : '記一筆'}
           </Button>
         </div>
       </Modal>

@@ -8,6 +8,9 @@
 alter table households add column if not exists invite_expires_at timestamptz;
 alter table households alter column invite_code drop not null;
 
+drop function if exists create_household(text);
+drop function if exists join_household(text);
+
 -- 產生一組限時邀請碼（同時只有一組有效，產生新碼會取代舊碼）
 create or replace function create_invite(hh_id uuid, ttl_minutes int)
 returns json language plpgsql security definer set search_path = public as $$

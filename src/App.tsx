@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useStore } from './store'
-import { signOut, createInvite } from './lib/api'
+import { createInvite } from './lib/api'
 import { Button, Modal, Segmented } from './components/ui'
 import { dueState } from './lib/time'
 import { Login } from './components/Login'
@@ -9,14 +9,16 @@ import { Home } from './components/Home'
 import { Tasks } from './components/Tasks'
 import { Laundry } from './components/Laundry'
 import { Money } from './components/Money'
+import { Settings } from './components/Settings'
 
-type Tab = 'home' | 'tasks' | 'laundry' | 'money'
+type Tab = 'home' | 'tasks' | 'laundry' | 'money' | 'settings'
 
 const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'home', label: '首頁', icon: '⌂' },
   { key: 'tasks', label: '待辦', icon: '☑' },
   { key: 'laundry', label: '洗衣', icon: '⟳' },
   { key: 'money', label: '分帳', icon: '＄' },
+  { key: 'settings', label: '設定', icon: '⚙' },
 ]
 
 export default function App() {
@@ -81,9 +83,6 @@ export default function App() {
         <button className="link-quiet" onClick={() => setShowInvite(true)}>
           邀請
         </button>
-        <button className="link-quiet" onClick={() => signOut()}>
-          登出
-        </button>
       </div>
 
       <Modal open={showInvite} title="邀請室友" onClose={closeInvite}>
@@ -136,6 +135,7 @@ export default function App() {
         {tab === 'tasks' && <Tasks />}
         {tab === 'laundry' && <Laundry />}
         {tab === 'money' && <Money />}
+        {tab === 'settings' && <Settings />}
       </main>
 
       <nav className="bottomnav">

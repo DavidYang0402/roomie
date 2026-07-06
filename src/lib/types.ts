@@ -7,6 +7,7 @@ export type TaskCategory = 'chore' | 'laundry' | 'other'
 export interface Member {
   id: Uuid
   display_name: string
+  birthday?: string | null
 }
 
 export interface Task {

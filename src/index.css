@@ -735,3 +735,52 @@ button {
   margin-left: 0;
   font-size: 0.82rem;
 }
+
+/* ---------- Settings ---------- */
+.settings-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 18px;
+  margin-bottom: 14px;
+}
+.settings-head {
+  font-size: 0.82rem;
+  font-weight: 650;
+  color: var(--muted);
+  margin-bottom: 14px;
+}
+.settings-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+.avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--pine-tint);
+  color: var(--pine-ink);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  flex: none;
+}
+
+/* ---------- 長文字 / 手機跑版修正 ---------- */
+.row-main > div {
+  min-width: 0; /* 讓文字容器能在 flex 裡收縮，長字才會換行而非撐破 */
+}
+.row-title,
+.row-sub {
+  overflow-wrap: anywhere; /* 超長的暱稱/品名自動斷行，不外溢 */
+}
+.row-actions {
+  flex: none; /* 動作鈕維持原寬，壓縮的是文字區 */
+}
+.preview,
+.balance-line {
+  overflow-wrap: anywhere;
+}

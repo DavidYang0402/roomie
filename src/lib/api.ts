@@ -75,10 +75,43 @@ export async function getMyHousehold(): Promise<HouseholdInfo | null> {
 export async function getMembers(householdId: Uuid): Promise<Member[]> {
   const { data, error } = await supabase
     .from('household_members')
-    .select('profiles(id, display_name)')
+    .select('profiles(id, display_name, birthday)')
     .eq('household_id', householdId)
   if (error) throw error
   return (data ?? []).map((r) => r.profiles as unknown as Member)
+}
+
+// ---------- 個人資料 ----------
+export interface Profile {
+  id: Uuid
+  display_name: string
+  birthday: string | null
+}
+
+export async function getMyProfile(): Promise<Profile | null> {
+  const { data: u } = await supabase.auth.getUser()
+  const uid = u.user?.id
+  if (!uid) return null
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, display_name, birthday')
+    .eq('id', uid)
+    .maybeSingle()
+  if (error) throw error
+  return data as Profile | null
+}
+
+export async function updateMyProfile(patch: { display_name: string; birthday: string | null }) {
+  const { data: u } = await supabase.auth.getUser()
+  const uid = u.user?.id
+  if (!uid) throw new Error('未登入')
+  const { error } = await supabase.from('profiles').update(patch).eq('id', uid)
+  if (error) throw error
+}
+
+export async function changePassword(newPassword: string) {
+  const { error } = await supabase.auth.updateUser({ password: newPassword })
+  if (error) throw error
 }
 
 // ---------- Tasks ----------
@@ -263,6 +296,44 @@ export async function createExpense(e: NewExpense) {
 export async function deleteExpense(id: Uuid) {
   const { error } = await supabase.from('expenses').delete().eq('id', id)
   if (error) throw error
+}
+
+export async function getExpenseParticipants(expenseId: Uuid): Promise<Uuid[]> {
+  const { data, error } = await supabase
+    .from('expense_splits')
+    .select('user_id')
+    .eq('expense_id', expenseId)
+  if (error) throw error
+  return (data ?? []).map((r) => r.user_id as Uuid)
+}
+
+export async function updateExpense(
+  id: Uuid,
+  patch: { description: string; amount: number; paid_by: Uuid; spent_at: string; memberIds: Uuid[] },
+) {
+  const { error } = await supabase
+    .from('expenses')
+    .update({
+      description: patch.description,
+      amount: patch.amount,
+      paid_by: patch.paid_by,
+      spent_at: patch.spent_at,
+    })
+    .eq('id', id)
+  if (error) throw error
+
+  // 重建分攤明細（先刪再加）
+  const { error: de } = await supabase.from('expense_splits').delete().eq('expense_id', id)
+  if (de) throw de
+  const n = patch.memberIds.length
+  const base = Math.floor((patch.amount / n) * 100) / 100
+  const splits = patch.memberIds.map((uid, i) => ({
+    expense_id: id,
+    user_id: uid,
+    share: i === n - 1 ? Math.round((patch.amount - base * (n - 1)) * 100) / 100 : base,
+  }))
+  const { error: se } = await supabase.from('expense_splits').insert(splits)
+  if (se) throw se
 }
 
 export async function getBalances(householdId: Uuid): Promise<Balance[]> {
