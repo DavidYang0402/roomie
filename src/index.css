@@ -538,7 +538,7 @@ button {
   font-weight: 550;
   color: var(--muted);
 }
-.field input,
+.field input:not([type='checkbox']),
 .field select {
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
@@ -546,7 +546,7 @@ button {
   background: var(--surface);
   width: 100%;
 }
-.field input:focus,
+.field input:not([type='checkbox']):focus,
 .field select:focus {
   outline: 2px solid var(--pine-tint);
   border-color: var(--pine);
@@ -718,8 +718,10 @@ button {
   color: var(--pine-ink);
 }
 .chk input {
-  accent-color: var(--pine);
   flex: none;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--pine);
 }
 .preview {
   background: var(--amber-tint);
