@@ -234,7 +234,7 @@ export function Money() {
                   checked={participants.includes(m.id)}
                   onChange={() => toggle(m.id)}
                 />
-                {m.display_name}
+                <span className="chk-name">{m.display_name}</span>
               </label>
             ))}
           </div>

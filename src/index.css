@@ -699,15 +699,18 @@ button {
 .chk {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: 0.92rem;
   user-select: none;
+}
+.chk-name {
+  flex: 1;
+  min-width: 0;
   overflow-wrap: anywhere;
-  word-break: break-word;
 }
 .chk.on {
   background: var(--pine-tint);
