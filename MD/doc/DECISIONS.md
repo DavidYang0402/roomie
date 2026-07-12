@@ -51,3 +51,49 @@ Impact:
 - 之後若要接 CI(GitHub Actions 等自動化),不能繼續共用這個正式專案,
   需另外申請一個測試專用的 Supabase 專案
 - 之後其他 feature 的測試會沿用這套框架與這兩個 npm script 的切分方式
+
+## 2026-07-12
+
+食材份數歸零且無 planned 菜引用時,自動從清單隱藏
+
+Decision:
+新增 view visible_ingredients(見 supabase/migration_v1_9_hide_depleted_ingredients.sql),
+規則:remaining_portions = 0 且沒有任何 status='planned' 的 Dish 透過 dish_ingredients
+引用該食材時,從清單隱藏,底層 ingredients 資料不刪除。src/lib/api.ts 的 listIngredients()
+改查這個 view,而非 ingredients 本表。
+
+Reason:
+原始規則(Task List 3.4)是「份數歸零保留顯示 0,不整筆刪除」,但實際使用後發現這樣會讓
+清單被用完的食材塞滿(例:烏龍麵剩 0/16、已無菜引用,卻仍一直顯示)。選擇在查詢時用 view
+過濾,而非在 completeDish/cancelDish 執行完後主動清理:除了資料安全(判斷邏輯有 bug也
+不會真的刪掉資料)之外,也是因為這樣能直接沿用 Task 6 已接好的 Realtime 機制——
+ingredients/dishes/dish_ingredients 有變動時 refresh() 本來就會重新查一次,不需要另外
+加清理邏輯的觸發點。
+
+Impact:
+listIngredients() 的資料來源從 ingredients 本表改成 visible_ingredients view,其餘寫入
+路徑(createIngredient、create_dish、cancel_dish、update_dish_ingredients)不受影響,
+仍直接對 ingredients 本表操作。往後若要做「顯示所有食材(含已隱藏)」的畫面(例如查歷史
+用量),需要另外查 ingredients 本表,不能沿用 listIngredients()。
+
+## 2026-07-12
+
+舊紀錄清理:不採用自動排程刪除,改為手動觸發 + 確認清單
+
+Decision:
+已完成/用完的食材與菜色,不做自動排程刪除(background cron / scheduled job)。改為之後
+在設定頁新增一個手動觸發的「清理舊紀錄」功能:刪除「N 天前已完成/用完」的食材與菜色紀錄
+(N 的具體天數尚未定案),點擊後先列出這次會刪除哪些項目讓使用者確認,確認後才真正執行
+DELETE。這個功能目前不急,先記錄方向,不排入開發。
+
+Reason:
+避免引入背景排程機制;避免自動化的不可逆刪除在判斷邏輯有 bug 時造成無法挽回的資料遺失。
+改為手動 + 先預覽清單再確認,即使邏輯有誤,使用者在確認畫面就能發現、可以取消。
+
+Impact:
+目前 Dish 完成/過期後是立即刪除(completeDish/sweepExpiredDishes,見
+MD/features/Cooking_and_Ingredients.md §4.3),沒有確認步驟,跟這裡的原則不一致。這個
+手動清理工具排入開發前,需要先確認範圍:只處理食材(份數歸零、被 visible_ingredients
+隱藏但底層資料還在的那些),還是連 Dish 既有的「完成/過期立即刪除」行為都要一併改成
+「留著、N 天後才手動清」——兩種範圍差異很大,尚未決定,已記錄在 Cooking_and_Ingredients.md
+的 Future Work 章節。

@@ -328,7 +328,21 @@ owner 為家戶共用(單一 household),即時同步採 Supabase Realtime(沿用
 - [x] 3.1 建立 Dish 時,依 `dish_ingredients` 指定的 `portions_used` 扣減對應食材 `remaining_portions`(可指定份數,非固定消耗 1 份——已於 2026-07-12 明確確認份數概念,見 Technical Notes)。DB 端邏輯抽成共用函式 `apply_dish_items()`,`create_dish()` 呼叫它(v1.8 對 v1.7 的 `create_dish()` 做 `create or replace`,行為不變、純重構);API 層對應 `createDish()`
 - [x] 3.2 新增 `cancel_dish()` RPC:取消一道**尚未到期**(`status='planned'`)的 Dish 時,退還已分配的食材份數並刪除該 Dish;API 層對應 `cancelDish()`。已完成的菜不能用這個函式取消(擋下 `DISH_ALREADY_DONE`),避免誤退還「已經煮掉」的份數
 - [x] 3.3 新增 `update_dish_ingredients()` RPC:編輯 Dish 更換所用食材時,先退還舊分配、刪除舊分配列,再依新清單呼叫 `apply_dish_items()` 重新分配;若新清單份量不足,整段(含退還)一起回滾,不會卡在「退了但還沒扣」的中間狀態。API 層對應 `updateDishIngredients()`
-- [x] 3.4 份數被扣到 0 的食材**保留顯示為 0**,不整筆刪除(2026-07-12 已確認;`ingredients` 表本身沒有「歸零自動刪除」邏輯,天然滿足這條)
+- [x] 3.4(2026-07-12 依實際使用回饋修正,取代原本的規則)
+  > **原規則(2026-07-12 稍早確認)**:份數被扣到 0 的食材保留顯示為 0,不整筆刪除。
+  > **修正原因**:實測時發現「烏龍麵」總份數 16、剩 0/16,且沒有任何 planned 狀態的菜還在引用它,
+  > 但清單上仍然一直顯示著,造成清單被用完的食材塞滿、雜訊變多。
+  > **新規則**:食材同時符合以下兩個條件時,從清單**隱藏**(不刪除底層資料):
+  >   1. `remaining_portions = 0`
+  >   2. 沒有任何 `status='planned'` 的 Dish 還透過 `dish_ingredients` 引用這個食材
+  >
+  > **實作方式**:採用「查詢時過濾、不刪除底層資料」(你提出的兩個方案之一,你傾向這個、我也認同)。
+  > 用 DB view `visible_ingredients`(見 [supabase/migration_v1_9_hide_depleted_ingredients.sql](../../supabase/migration_v1_9_hide_depleted_ingredients.sql),手法比照既有 `balances` view、`security_invoker = on` 沿用查詢者的 RLS),
+  > `src/lib/api.ts` 的 `listIngredients()` 改成查這個 view 而非 `ingredients` 本表。
+  > 選這個方案而非「`completeDish`/`cancelDish` 執行完順便清理」,除了你提到的安全性(判斷邏輯有 bug
+  > 也不會真的弄丟資料)之外,還有一個理由:這樣可以直接沿用 Task 6 已經接好的 Realtime
+  > 機制——`dishes`/`dish_ingredients` 表有變動時,`refresh()` 本來就會重新呼叫 `listIngredients()`,
+  > 食材要不要隱藏會跟著自動重新算,不需要額外在 `completeDish`/`cancelDish` 裡加清理邏輯。
 
 ### 4. 過期 / 完成自動處理(兩功能綁定 AC)—— ✅ 邏輯層已完成,無需 migration
 > 全部實作於 `src/lib/api.ts`(`deleteDish`、`completeDish`、`sweepExpiredDishes`)。**這次沒有新增
@@ -436,6 +450,35 @@ owner 為家戶共用(單一 household),即時同步採 Supabase Realtime(沿用
 
 ---
 
+## Future Work(未來規劃,尚未排入開發)
+
+### 手動清理舊紀錄(食材/菜色)
+
+> 2026-07-12 記錄方向,尚未排入開發。細節(N 的實際天數等)尚未定案,排入開發前需另外確認。
+
+**背景**:目前的機制是——Dish 完成或過了當天時,`completeDish()`/`sweepExpiredDishes()`
+會**立即**刪除該筆 Dish(無確認步驟,見 §4.3);食材份數歸零且無 `planned` 狀態的 Dish 引用時,
+`visible_ingredients` view 會把它從清單**隱藏**,但底層 `ingredients` 資料不會被刪除,會一直留在
+資料庫裡(見 §3.4、[DECISIONS.md](../doc/DECISIONS.md))。
+
+**已決定不採用**:自動排程刪除(background cron / scheduled job)。理由:避免引入背景排程機制,
+也避免自動化的不可逆刪除在判斷邏輯有 bug 時造成無法挽回的資料遺失。
+
+**目前傾向的方向**:
+- 設定頁新增一個手動觸發的「清理舊紀錄」功能
+- 可刪除「N 天前已完成/用完」的食材與菜色紀錄(N 的具體天數尚未定案,你提到「例如 30 天」但
+  強調還要再想,不是確定值)
+- 點擊後**先列出這次會刪除哪些項目讓你確認,確認後才真正執行 DELETE**,不能一鍵直接刪除
+
+**排入開發前待確認的範圍問題**(目前的機制跟這個新方向有一處沒對齊,想先點出來):
+- Dish 目前完成/過期後**已經被立即刪除**,不會留著等這個手動工具處理。如果要讓這個工具也涵蓋
+  Dish,代表要同時把 §4.3 現有的「立即刪除」行為,改成「留著、標記完成時間、N 天後才透過這個工具
+  手動刪除」——這是要修改既有、已測試確認過的行為,範圍比「只新增一個清理食材的工具」大很多。
+  這個工具的範圍究竟是「只處理食材」還是「食材 + 連 Dish 的既有立即刪除行為都要改」,排入開發前
+  需要先跟你確認,不能用猜的動工。
+
+---
+
 ## Status Log
 | 日期 | 狀態變化 | 備註 |
 |---|---|---|
@@ -449,3 +492,5 @@ owner 為家戶共用(單一 household),即時同步採 Supabase Realtime(沿用
 | 2026-07-12 | Task 4 設計判斷已認可,繼續 Task 5(前端 UI)並完成、已實測 | 時區 bug 處理方式、status/done_at 暫不使用兩點均已認可。新增 [src/components/Cooking.tsx](../../src/components/Cooking.tsx),掛進 App.tsx 新分頁「煮菜」,樣式沿用既有 class(新增 `.qty-input`)。`sweepExpiredDishes()` 在畫面 `load()` 時呼叫,補上 Task 4 留下的「尚未接上 UI」。額外加了「完成」「取消」操作按鈕(不在 Task 5 條列項目內,但沒有它們 Task 3/4 的邏輯無法從畫面觸發或驗證,視為必要)。**實測**:啟動 `npm run dev`,用新帳號 + 新 household 在瀏覽器跑過完整流程(新增食材 → 排菜超量正確擋下顯示 shortages 訊息 → 改量成功、份數正確扣減 → 取消該菜、份數正確退還 → 再排一次並點完成、份數維持已扣減不退還 → 切回首頁確認無迴歸),全程 console 無錯誤。`npx tsc -b` 型別檢查通過。依指示不繼續 Task 6 以後。 |
 | 2026-07-12 | Task 5 實測結果與範圍延伸均已認可,繼續 Task 6(Realtime 訂閱)並完成、已實測跨帳號同步 | `ingredients`/`dishes` 併入 `store.tsx` 全域 state,`refresh()` 一併抓取兩者並在最前面呼叫 `sweepExpiredDishes()`;Realtime channel 新增訂閱 `ingredients`/`dishes`/`dish_ingredients` 三張表;`Cooking.tsx` 改為從 `useStore()` 讀取,不再自己管本地 state(對齊 Tasks/Laundry/Money 既有架構)。§6.2 與原規劃文字有出入:「比照既有 pattern」實際上找不到現成的斷線重連 pattern(`.subscribe()` 本來沒帶 callback),改成幫整個 channel 的 `.subscribe()` 加上 `(status) => status==='SUBSCRIBED' && refresh()`,對既有 tasks/expenses/settlements 也一併生效,已在 §6.2 標註。**無需新 migration**。**實測**:沿用瀏覽器已登入 session,產生邀請碼後,另寫一支一次性腳本在瀏覽器外模擬「室友 B」(新帳號、用邀請碼加入同一 household、直接寫入一筆食材),全程沒碰瀏覽器分頁,約 2 秒後分頁自動顯示這筆室友 B 新增的食材,無需手動整理,console 無錯誤,確認 Realtime 訂閱真的把「別人的改動」推到我的畫面上。切回待辦分頁確認無迴歸。腳本測完已刪除。`npx tsc -b` 型別檢查通過。這次測試又留了一個新測試帳號(`cooking-realtime-b-*@example.com`),一併列入你之後的清理清單。依指示不繼續 Task 7 以後。 |
 | 2026-07-12 | Task 6 實測方式與 6.2 改動均已認可,繼續並完成 Task 7(測試撰寫)——全案 Task List 收斂 | 確認專案原本無任何測試框架,先問過方向:裝 Vitest(devDependencies 新增 `vitest`/`@testing-library/react`/`jsdom`)、7.2 對 `.env` 真實 Supabase 專案跑 integration test。新增 [vitest.config.ts](../../vitest.config.ts)(獨立於 vite.config.ts,因型別擴充在這個專案的 tsconfig 設定下不穩定,改用 `mergeConfig`);`package.json` 新增 `test`(排除 integration)/`test:integration` 兩個 script;`tsconfig.node.json` include 加入 `vitest.config.ts`。為讓 7.3 可測,先把 `api.ts`/`Cooking.tsx` 重複的日期比較邏輯抽成 `src/lib/time.ts` 的 `isPastLocalDate()` 純函式再測。三個測試檔:[time.test.ts](../../src/lib/time.test.ts)(5 案例,純函式)、[store.realtime.test.tsx](../../src/store.realtime.test.tsx)(1 案例,mock Realtime channel 驗證 refresh 更新畫面)、[api.dish.integration.test.ts](../../src/lib/api.dish.integration.test.ts)(7 案例,對真實 DB function 跑,含「shortages 陣列列出全部不足食材」這條直接驗證 Task 1.5 改用 RPC 的理由)。**全部實際執行過**:`npm test` 6/6 過、`npm run test:integration` 7/7 過(對真實專案,又留一個測試帳號 `dish-integration-*@example.com` 待你清理)、`npm run build` 確認無迴歸。至此 Task 1–7 全部完成,§8 拍板項目也已全數確認,Task List 沒有剩餘項目。 |
+| 2026-07-12 | Task 7 確認完成;Status 改為 ✅ Done;實際使用發現後修正 3.4 規則 | 頁首 `Status` 由「🔵 In Review」改為「✅ Done」。隨後依實際使用回饋(範例:烏龍麵 16 份用完剩 0/16、無 planned 菜引用,但清單仍顯示)修正 3.4:改為「份數=0 且無 planned Dish 引用時,從清單隱藏,不刪除底層資料」。採用你偏好的「查詢時過濾」方案:新增 [supabase/migration_v1_9_hide_depleted_ingredients.sql](../../supabase/migration_v1_9_hide_depleted_ingredients.sql)(view `visible_ingredients`,手法比照既有 `balances` view),`src/lib/api.ts` 的 `listIngredients()` 改查這個 view。除了你提到的安全性,選這個方案還因為能直接沿用 Task 6 的 Realtime 機制,不需要在 `completeDish`/`cancelDish` 額外加清理邏輯。`npx tsc -b` 型別檢查、`npm test`(6/6,不含 DB)均通過。**v1.9 尚未執行**,需你到 Supabase SQL Editor 手動執行並回報結果,之後我才能重跑 `npm run test:integration` 與瀏覽器實測(目前 `visible_ingredients` 還不存在,`listIngredients()` 會直接報錯)。DECISIONS.md 的 Vitest 決策紀錄仍待你補上實際文字(訊息中提到已附上但沒有收到內容)。 |
+| 2026-07-12 | DECISIONS.md 補上 Realtime 重連補漏 + Vitest 兩筆(你直接提供文字);第三筆(visible_ingredients)由我依實作內容補上 | 前兩筆連同一筆「Realtime 資料隔離驗證」記錄已存在於檔案中(未動);新增第三筆記錄 `visible_ingredients` view 的決策理由與影響。之後你提出「已完成/用完的食材與菜」的清理方向重新考慮:**不採用自動排程刪除**(避免背景排程機制與不可逆刪除風險),改為設定頁手動觸發、需先列清單確認才真正 DELETE 的「清理舊紀錄」功能,N 天數尚未定案,**這個功能不急,先記錄方向,不排入開發**。已新增文件內 [Future Work](#future-work未來規劃尚未排入開發) 章節記錄。同時點出一處範圍待釐清:目前 Dish 完成/過期後是**立即**刪除(§4.3,無確認步驟),跟這個新方向的原則有出入——這個工具排入開發前,需要先確認範圍是「只處理食材」還是「連 Dish 既有的立即刪除行為都要一併改」,未擅自假設。 |

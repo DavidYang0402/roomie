@@ -358,9 +358,12 @@ export async function settleUp(args: {
 }
 
 // ---------- 食材 ----------
+// 查 visible_ingredients（非 ingredients 本表）：份數用完（remaining_portions=0）且沒有任何
+// status='planned' 的 Dish 還引用它時，這個 view 會自動把它濾掉——底層資料不刪除，只是不顯示
+// （見 migration_v1_9，2026-07-12 依實際使用回饋修正 Task List 3.4 原本「保留顯示 0」的規則）。
 export async function listIngredients(householdId: Uuid): Promise<Ingredient[]> {
   const { data, error } = await supabase
-    .from('ingredients')
+    .from('visible_ingredients')
     .select('*')
     .eq('household_id', householdId)
     .order('purchased_at', { ascending: true }) // 舊→新（已於 2026-07-12 確認排序方向）
