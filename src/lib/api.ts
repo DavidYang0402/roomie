@@ -391,6 +391,31 @@ export async function createIngredient(i: NewIngredient) {
   if (error) throw error
 }
 
+export interface IngredientEdit {
+  name: string
+  purchased_at: string
+  total_portions: number
+}
+
+// 總份數改變時，remaining_portions 由 RPC 同步位移（已分配的份數不變，只調整池子大小）；
+// 若改到比「已分配掉的份數」還少，RPC 會擋下並丟出 TOTAL_BELOW_ALLOCATED:<已分配數量>。
+export async function updateIngredient(id: Uuid, patch: IngredientEdit) {
+  const { error } = await supabase.rpc('update_ingredient', {
+    p_id: id,
+    p_name: patch.name,
+    p_purchased_at: patch.purchased_at,
+    p_total_portions: patch.total_portions,
+  })
+  if (error) throw error
+}
+
+// 只有「從沒被任何 Dish 使用過」的食材能刪（DB 端用 trigger 強制擋下，這裡只是照樣呼叫；
+// 若違反規則會收到 INGREDIENT_IN_USE 錯誤）。
+export async function deleteIngredient(id: Uuid) {
+  const { error } = await supabase.from('ingredients').delete().eq('id', id)
+  if (error) throw error
+}
+
 // ---------- 煮菜規劃 ----------
 export interface DishShortage {
   ingredient_id: Uuid
@@ -473,6 +498,21 @@ export async function updateDishIngredients(dishId: Uuid, items: DishItem[]) {
     items,
   })
   if (error) rethrowShortageAware(error)
+}
+
+// 編輯一道尚未完成的菜：菜名/日期是單純的 table update；所用食材一律透過
+// update_dish_ingredients() 重新分配一次（即使實際上沒有更動內容，作法同上一版：
+// 藉由這個既有 RPC 的原子檢查，確保存檔當下份量仍然足夠）。
+export async function updateDish(
+  dishId: Uuid,
+  patch: { name: string; planned_date: string; items: DishItem[] },
+) {
+  const { error } = await supabase
+    .from('dishes')
+    .update({ name: patch.name, planned_date: patch.planned_date })
+    .eq('id', dishId)
+  if (error) throw error
+  await updateDishIngredients(dishId, patch.items)
 }
 
 // 取消一道尚未完成的菜：退還已分配的食材份數，並刪除該筆菜（cascade 移除分配明細）。

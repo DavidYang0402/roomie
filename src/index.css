@@ -723,10 +723,56 @@ button {
   height: 18px;
   accent-color: var(--pine);
 }
-.qty-input {
-  width: 52px;
+/* ---------- 排菜：食材選擇 ----------
+   刻意獨立於 .chk（分帳的勾選清單也在用，不能共用結構），而且 qty-input 是
+   .ing-pick-row 的直接 sibling、不巢在 checkbox 的 <label> 裡面——避免點擊 qty-input
+   被瀏覽器的 label 點擊轉發機制誤判成切換 checkbox，導致打字打不進去（見使用回饋）。*/
+.ing-pick-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ing-pick-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: 0.92rem;
+}
+.ing-pick-row.on {
+  background: var(--pine-tint);
+  border-color: var(--pine);
+  color: var(--pine-ink);
+}
+.ing-pick-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+  user-select: none;
+}
+.ing-pick-main input {
   flex: none;
-  padding: 4px 6px;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--pine);
+}
+.ing-pick-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  gap: 2px;
+}
+
+.qty-input {
+  width: 64px;
+  flex: none;
+  padding: 6px 8px;
   text-align: center;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);

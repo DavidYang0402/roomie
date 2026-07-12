@@ -450,6 +450,51 @@ owner 為家戶共用(單一 household),即時同步採 Supabase Realtime(沿用
 
 ---
 
+## Post-Release Fixes(上線後使用回饋修正,2026-07-12)
+
+> 你回報 4 個使用上的問題,逐項處理如下。migration v1.10 已於 2026-07-12 執行成功(你確認過),
+> 全部 4 項現在都已經是**完整生效並實測過**的狀態,不再有「待 migration」的部分。
+
+### 1. 食材與 Dish 都沒有編輯功能 —— ✅ 已完成,已實測
+- **Dish 編輯**:`src/lib/api.ts` 新增 `updateDish()`(菜名/日期是單純 table update;所用食材一律呼叫既有的 `updateDishIngredients()` RPC 重新分配一次)。`Cooking.tsx` 的 `DishForm` 改為 `dish` 有值即編輯模式,開啟時用 `getDishIngredients()` 撈出目前的食材/份數預先勾好。**已實測**:排一道菜(高麗菜 3 份,剩 0/4)→編輯改成 2 份→存檔→高麗菜正確變回剩 1/4(退還 1 份),全程 console 無錯誤。這部分不需要新 migration,`update_dish_ingredients()` RPC 在 v1.8 就有了。
+- **食材編輯**(名稱/購買日期/總份數):新增 `update_ingredient()` RPC(migration v1.10),總份數改變時 `remaining_portions` 會同步位移,若改到比「已分配掉的份數」還少會擋下(`TOTAL_BELOW_ALLOCATED`)。`Cooking.tsx` 的 `IngredientForm` 改為 `ingredient` 有值即編輯模式。**已實測**:migration 執行前先測過「優雅失敗」路徑(RPC 不存在時顯示「儲存失敗,請再試一次」,不會白屏或未捕捉例外);migration 跑完後補測成功路徑——高麗菜總份數 4→6,剩餘份數正確從 2 位移到 4(保留原本已分配的 2 份不動)。另外新增 [src/lib/api.ingredient.integration.test.ts](../../src/lib/api.ingredient.integration.test.ts),對真實 Supabase 專案跑,涵蓋「改總份數低於已分配份數應擋下」這個邊界情況。
+
+### 2. 食材刪除規則(未被使用才能刪)—— ✅ 已完成,已實測
+- 新增 `deleteIngredient()`(`src/lib/api.ts`)。**規則實際上在 DB 端用 trigger 強制**(`prevent_delete_used_ingredient`,migration v1.10)——不是只靠前端擋:只要 `dish_ingredients` 還有任何一筆引用這個食材,直接 DELETE 就會被擋下並丟出 `INGREDIENT_IN_USE`(理由:`ingredient_id` 的 FK 是 `on delete cascade`,若不擋,直接刪除食材會連帶砍掉 dish_ingredients 的分配紀錄,靜默弄丟資料)。
+- 前端用 `visible_ingredients` view 新增的 `in_use` 欄位決定要不要顯示「刪」按鈕:已使用的食材只顯示「編輯」,並加一個「使用中」標籤;未使用的才顯示「刪」。
+- **已實測**(瀏覽器對真實 Supabase 專案跑):排一道菜用掉高麗菜後,高麗菜正確變成只顯示「編輯」+「使用中」標籤,同時間未使用的紅蘿蔔仍顯示「刪」且成功刪除;取消該道菜後,高麗菜的「使用中」標籤與刪除按鈕限制正確跟著解除。DB 端的 `INGREDIENT_IN_USE` 保護、`in_use` 欄位正確性,都涵蓋在 `api.ingredient.integration.test.ts` 裡直接呼叫 RPC 驗證(不透過 UI,因為 UI 本來就不會讓你點到那個按鈕)。
+
+### 3. 數字輸入框無法直接輸入,只能用箭頭 —— ✅ 已修正,已實測
+根本原因:原本的 `onChange` 寫成 `parseInt(e.target.value || '1', 10)`,只要欄位被清空,`''`
+會立刻被這行程式碼硬轉回 `'1'`,導致「清空、輸入新數字」這個動作永遠打不進去,只能用瀏覽器數字
+輸入框內建的上下箭頭一格一格調——這正是你描述的症狀(要跳到 16 再往下數到 6)的成因。
+
+依你的建議改成 `type="text"` + `inputMode="numeric"`,搭配 `digitsOnly()` 過濾輸入(把非數字字元
+直接濾掉,不接受負號、小數點——不是事後報錯,而是打的當下就不會出現在欄位裡),兩處都改了:
+食材的「可使用份數」、排菜時每個食材的「用掉幾份」。存檔前用 `Number.isInteger(...) && >= 1`
+驗證,不合法就讓存檔按鈕保持disabled。
+
+**已實測**(對真實 Supabase 專案跑,不是只看程式碼):在排菜表單勾選食材後,直接三擊選取欄位內容、
+輸入 `2` → 成功變成 `2`;再輸入 `-3a.5` → 正確過濾成 `35`(負號、字母、小數點都被擋掉);清空後
+存檔按鈕正確 disabled。全程沒有出現「卡在某個數字、只能用箭頭調」的情況。
+
+### 4. 排菜畫面食材選擇的版面跑掉 —— ✅ 已修正,已實測
+原本的份數輸入框是巢在「checkbox 的 `<label>` 裡面」(`<label className="chk">...<input type=number
+className="qty-input" />...</label>`)——這除了造成版面上 `.qty-input` 跟其他項目擠在同一個 flex
+容器裡寬度不一致之外,更根本的問題是:**巢在 label 裡面的欄位,點擊有時會被瀏覽器的 label 點擊
+轉發機制誤判成「點了 checkbox」**,這其實也是第 3 點「點不進去打字」的另一半成因(不只是
+parseInt 那個 bug)。
+
+這次重新設計了排菜的食材選擇列(新增獨立的 `.ing-pick-row`/`.ing-pick-main`/`.ing-pick-text`
+class,刻意不共用分帳畫面在用的 `.chk`,避免互相影響):checkbox+名稱是一個 `<label>`,份數輸入框
+是**同一列裡的 sibling,不再巢在 label 裡面**——結構上就不可能再被誤判成點擊 checkbox。`.qty-input`
+也從 52px 加寬到 64px,並補上 `border`/`background`,不再依賴瀏覽器 `type=number` 的預設外觀。
+
+**已實測**:在瀏覽器裡開排菜表單,勾選/取消勾選食材、點擊份數輸入框直接打字,版面沒有再出現擠壓
+或跑版,勾選中的列跟未勾選的列寬度一致。
+
+---
+
 ## Future Work(未來規劃,尚未排入開發)
 
 ### 手動清理舊紀錄(食材/菜色)
@@ -494,3 +539,5 @@ owner 為家戶共用(單一 household),即時同步採 Supabase Realtime(沿用
 | 2026-07-12 | Task 6 實測方式與 6.2 改動均已認可,繼續並完成 Task 7(測試撰寫)——全案 Task List 收斂 | 確認專案原本無任何測試框架,先問過方向:裝 Vitest(devDependencies 新增 `vitest`/`@testing-library/react`/`jsdom`)、7.2 對 `.env` 真實 Supabase 專案跑 integration test。新增 [vitest.config.ts](../../vitest.config.ts)(獨立於 vite.config.ts,因型別擴充在這個專案的 tsconfig 設定下不穩定,改用 `mergeConfig`);`package.json` 新增 `test`(排除 integration)/`test:integration` 兩個 script;`tsconfig.node.json` include 加入 `vitest.config.ts`。為讓 7.3 可測,先把 `api.ts`/`Cooking.tsx` 重複的日期比較邏輯抽成 `src/lib/time.ts` 的 `isPastLocalDate()` 純函式再測。三個測試檔:[time.test.ts](../../src/lib/time.test.ts)(5 案例,純函式)、[store.realtime.test.tsx](../../src/store.realtime.test.tsx)(1 案例,mock Realtime channel 驗證 refresh 更新畫面)、[api.dish.integration.test.ts](../../src/lib/api.dish.integration.test.ts)(7 案例,對真實 DB function 跑,含「shortages 陣列列出全部不足食材」這條直接驗證 Task 1.5 改用 RPC 的理由)。**全部實際執行過**:`npm test` 6/6 過、`npm run test:integration` 7/7 過(對真實專案,又留一個測試帳號 `dish-integration-*@example.com` 待你清理)、`npm run build` 確認無迴歸。至此 Task 1–7 全部完成,§8 拍板項目也已全數確認,Task List 沒有剩餘項目。 |
 | 2026-07-12 | Task 7 確認完成;Status 改為 ✅ Done;實際使用發現後修正 3.4 規則 | 頁首 `Status` 由「🔵 In Review」改為「✅ Done」。隨後依實際使用回饋(範例:烏龍麵 16 份用完剩 0/16、無 planned 菜引用,但清單仍顯示)修正 3.4:改為「份數=0 且無 planned Dish 引用時,從清單隱藏,不刪除底層資料」。採用你偏好的「查詢時過濾」方案:新增 [supabase/migration_v1_9_hide_depleted_ingredients.sql](../../supabase/migration_v1_9_hide_depleted_ingredients.sql)(view `visible_ingredients`,手法比照既有 `balances` view),`src/lib/api.ts` 的 `listIngredients()` 改查這個 view。除了你提到的安全性,選這個方案還因為能直接沿用 Task 6 的 Realtime 機制,不需要在 `completeDish`/`cancelDish` 額外加清理邏輯。`npx tsc -b` 型別檢查、`npm test`(6/6,不含 DB)均通過。**v1.9 尚未執行**,需你到 Supabase SQL Editor 手動執行並回報結果,之後我才能重跑 `npm run test:integration` 與瀏覽器實測(目前 `visible_ingredients` 還不存在,`listIngredients()` 會直接報錯)。DECISIONS.md 的 Vitest 決策紀錄仍待你補上實際文字(訊息中提到已附上但沒有收到內容)。 |
 | 2026-07-12 | DECISIONS.md 補上 Realtime 重連補漏 + Vitest 兩筆(你直接提供文字);第三筆(visible_ingredients)由我依實作內容補上 | 前兩筆連同一筆「Realtime 資料隔離驗證」記錄已存在於檔案中(未動);新增第三筆記錄 `visible_ingredients` view 的決策理由與影響。之後你提出「已完成/用完的食材與菜」的清理方向重新考慮:**不採用自動排程刪除**(避免背景排程機制與不可逆刪除風險),改為設定頁手動觸發、需先列清單確認才真正 DELETE 的「清理舊紀錄」功能,N 天數尚未定案,**這個功能不急,先記錄方向,不排入開發**。已新增文件內 [Future Work](#future-work未來規劃尚未排入開發) 章節記錄。同時點出一處範圍待釐清:目前 Dish 完成/過期後是**立即**刪除(§4.3,無確認步驟),跟這個新方向的原則有出入——這個工具排入開發前,需要先確認範圍是「只處理食材」還是「連 Dish 既有的立即刪除行為都要一併改」,未擅自假設。 |
+| 2026-07-12 | 上線後使用回饋 4 項修正(見新增的 [Post-Release Fixes](#post-release-fixes上線後使用回饋修正2026-07-12) 章節) | (1) Dish 編輯:新增 `updateDish()`,不需新 migration,**已實測**(改份數正確觸發退還)。食材編輯:新增 `update_ingredient()` RPC + migration v1.10,**程式碼完成、待 migration 生效**,已實測「migration 未跑時優雅失敗」路徑。(2) 食材刪除規則:新增 `deleteIngredient()` + DB trigger `prevent_delete_used_ingredient`(v1.10)+ view 新增 `in_use` 欄位控制刪除按鈕顯示,**同樣待 v1.10 生效**;過渡期間所有食材都會顯示刪除按鈕(`in_use` 欄位不存在時恆為 falsy),已提醒現在不要手動測試刪除已使用的食材。(3) 數字輸入框無法直接輸入:根因是 `parseInt(value || '1', 10)` 清空時被強制拉回 1,改成 `type="text"` + `inputMode="numeric"` + `digitsOnly()` 過濾,**已對真實專案實測**(輸入 `-3a.5` 正確過濾成 `35`)。(4) 排菜版面跑掉:根因除了版面外,份數輸入框巢在 checkbox 的 `<label>` 裡面也是「點不進去打字」的另一半成因,改成獨立 `.ing-pick-row`/`.ing-pick-main` class、qty-input 移出 label 變成 sibling,**已實測**版面正常。`npx tsc -b`、`npm test`(6/6)均通過,Money.tsx 的 `.chk` 未受影響(迴歸測試確認)。**v1.10 尚未執行**,需你到 Supabase SQL Editor 手動執行並回報結果,我才能完成食材編輯/刪除的實測。 |
+| 2026-07-12 | v1.10 執行結果不明確,查證後確認已生效;補測 1、2 兩項的成功路徑,4 項全部完成 | 你回報「migration_v1_10 已執行,結果:[成功 / 貼上錯誤訊息]」——這看起來是範例文字沒被替換掉,無法判斷實際結果,沒有用猜的往下做,改用 anon key 直接查詢 `visible_ingredients` 的 `in_use` 欄位是否存在、探測 `update_ingredient` RPC 是否存在(用假 id,不動任何真實資料),確認 v1.10 已生效。新增 [src/lib/api.ingredient.integration.test.ts](../../src/lib/api.ingredient.integration.test.ts)(5 案例,對真實 Supabase 專案跑):`updateIngredient` 成功編輯與同步位移 remaining_portions、改總份數低於已分配額擋下(`TOTAL_BELOW_ALLOCATED`)、`deleteIngredient` 對未使用食材成功、對已使用食材擋下(`INGREDIENT_IN_USE`)且確認 dish_ingredients 沒被 cascade 砍掉、`in_use` 欄位正確反映使用狀態(含 cancelDish 後應變回 false)。`npm run test:integration` 12/12 全過(7+5)。瀏覽器實測:排菜使用高麗菜後,高麗菜正確變成只顯示「編輯」+「使用中」標籤,紅蘿蔔(未使用)成功刪除;編輯高麗菜總份數 4→6,剩餘正確從 2 位移到 4;取消該道菜後「使用中」標籤與刪除限制正確解除,全程 console 無錯誤。§Post-Release Fixes 1、2 兩項狀態改為「✅ 已完成,已實測」,不再有「待 migration」的部分。`npm test`(6/6)、`npm run build` 均通過。 |

@@ -58,6 +58,7 @@ const ingredientA: Ingredient = {
   remaining_portions: 4,
   created_by: 'user-1',
   created_at: '2026-07-01T00:00:00Z',
+  in_use: false,
 }
 
 function Probe() {

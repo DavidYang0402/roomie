@@ -63,6 +63,9 @@ export interface Ingredient {
   remaining_portions: number
   created_by: Uuid
   created_at: string
+  // 是否有任何 dish_ingredients 紀錄引用這個食材（不分引用的 Dish 狀態）——
+  // 由 visible_ingredients view 計算（migration_v1_10），只有 listIngredients() 會帶這個欄位。
+  in_use: boolean
 }
 
 export interface Dish {

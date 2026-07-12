@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "deploy": "npm run build && gh-pages -d dist -t",
     "test": "vitest run --exclude '**/*.integration.test.*'",
-    "test:integration": "vitest run src/lib/api.dish.integration.test.ts"
+    "test:integration": "vitest run src/lib/api.dish.integration.test.ts src/lib/api.ingredient.integration.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

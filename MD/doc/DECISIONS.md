@@ -97,3 +97,35 @@ MD/features/Cooking_and_Ingredients.md §4.3),沒有確認步驟,跟這裡的原
 隱藏但底層資料還在的那些),還是連 Dish 既有的「完成/過期立即刪除」行為都要一併改成
 「留著、N 天後才手動清」——兩種範圍差異很大,尚未決定,已記錄在 Cooking_and_Ingredients.md
 的 Future Work 章節。
+
+## 2026-07-12
+
+食材編輯 / 刪除:資料完整性保護放在 DB 層,不只靠前端擋(migration v1.10)
+
+Decision:
+1. 食材刪除:新增 BEFORE DELETE trigger(prevent_delete_used_ingredient),只要
+   dish_ingredients 還有任何一筆引用該食材,直接擋下並丟出 INGREDIENT_IN_USE,不只是
+   前端隱藏刪除按鈕。
+2. 食材編輯總份數(total_portions):改變時 remaining_portions 用 delta 同步位移
+   (new_remaining = old_remaining + (new_total - old_total)),保留「已分配掉的份數不變、
+   只調整池子大小」的語意;若位移後會變負數(代表新總份數低於已分配掉的份數),整個更新擋下
+   並回傳 TOTAL_BELOW_ALLOCATED,不允許改到比已用掉的還少。
+3. in_use(食材是否被任何 Dish 引用,供前端決定要不要顯示刪除按鈕)算在
+   visible_ingredients view 裡當一個計算欄位回傳,不另外在 store 開一個 dish_ingredients
+   平面陣列、也不讓前端另外查一次。
+
+Reason:
+ingredients.id 的外鍵是 on delete cascade,如果不擋,直接刪除食材會靜默砍掉
+dish_ingredients 的分配紀錄(等於弄丟哪道菜用了多少這個食材的歷史)。這個資料庫本來就
+允許同家成員直接對 ingredients 表做 for all(v1.7 的 RLS policy),表示光靠前端隱藏
+按鈕不夠——任何人直接呼叫 API/RPC 都能繞過。這個做法延續專案既有慣例(tasks 表的
+enforce_task_update trigger 也是同樣道理:規則强制放在 DB 層,而不是只信任前端)。
+in_use 算在 view 裡是因為這個判斷本來就依賴 ingredients/dishes/dish_ingredients 三張表
+的關聯,放在既有的 visible_ingredients view(已經在做類似的關聯判斷)比另開一份 store
+狀態或多一次查詢更省事,而且能沿用既有的 Realtime refresh() 機制自動更新。
+
+Impact:
+往後任何直接寫 SQL 或呼叫 API 操作 ingredients 表的地方(不只現在這個 UI),都會受到同一層
+保護,不會因為換一個呼叫路徑就繞過規則。編輯食材總份數的 API/UI 都需要處理
+TOTAL_BELOW_ALLOCATED 這個錯誤情境。UI 對「食材是否可刪除」的判斷完全信任 view 回傳的
+in_use 欄位,不應該自己另外用本地資料重新計算一次,避免兩邊邏輯不同步。
