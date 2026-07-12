@@ -726,20 +726,30 @@ button {
 /* ---------- 排菜：食材選擇 ----------
    刻意獨立於 .chk（分帳的勾選清單也在用，不能共用結構），而且 qty-input 是
    .ing-pick-row 的直接 sibling、不巢在 checkbox 的 <label> 裡面——避免點擊 qty-input
-   被瀏覽器的 label 點擊轉發機制誤判成切換 checkbox，導致打字打不進去（見使用回饋）。*/
+   被瀏覽器的 label 點擊轉發機制誤判成切換 checkbox，導致打字打不進去（見使用回饋）。
+
+   這個區塊包在 .field 裡面（跟菜名/日期共用同一種欄位間距），但 .field input 有一條
+   全域規則 width:100%（給一般表單欄位用的），跟 .field 是「後代選擇器」而非只認直接子層，
+   所以會一路套用到巢在裡面的 checkbox 跟 qty-input，蓋掉這裡想要的 18px / 64px 固定寬度
+   ——這就是「名稱被擠成直排、qty-input 蓋住文字」這個 bug 的真正成因(用瀏覽器實測、量
+   getBoundingClientRect() 抓到的，不是用猜的)。以下選擇器刻意多疊一層 class，讓 specificity
+   蓋過 .field input，不用 !important。 */
 .ing-pick-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  width: 100%;
 }
 .ing-pick-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 8px 10px;
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   font-size: 0.92rem;
+  width: 100%;
 }
 .ing-pick-row.on {
   background: var(--pine-tint);
@@ -750,12 +760,12 @@ button {
   display: flex;
   align-items: center;
   gap: 10px;
-  flex: 1;
+  flex: 1 1 180px;
   min-width: 0;
   cursor: pointer;
   user-select: none;
 }
-.ing-pick-main input {
+.ing-pick-row .ing-pick-main input {
   flex: none;
   width: 18px;
   height: 18px;
@@ -765,11 +775,14 @@ button {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  overflow-wrap: anywhere;
   gap: 2px;
 }
+.ing-pick-text > span:first-child {
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
 
-.qty-input {
+.modal .ing-pick-row .qty-input {
   width: 64px;
   flex: none;
   padding: 6px 8px;
@@ -778,7 +791,7 @@ button {
   border-radius: var(--radius-sm);
   background: var(--surface);
 }
-.qty-input:focus {
+.modal .ing-pick-row .qty-input:focus {
   outline: 2px solid var(--pine-tint);
   border-color: var(--pine);
 }
