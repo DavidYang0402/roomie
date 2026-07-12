@@ -538,7 +538,7 @@ button {
   font-weight: 550;
   color: var(--muted);
 }
-.field input,
+.field input:not([type='checkbox']),
 .field select {
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
@@ -546,7 +546,7 @@ button {
   background: var(--surface);
   width: 100%;
 }
-.field input:focus,
+.field input:not([type='checkbox']):focus,
 .field select:focus {
   outline: 2px solid var(--pine-tint);
   border-color: var(--pine);
@@ -699,15 +699,18 @@ button {
 .chk {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: 0.92rem;
   user-select: none;
+}
+.chk-name {
+  flex: 1;
+  min-width: 0;
   overflow-wrap: anywhere;
-  word-break: break-word;
 }
 .chk.on {
   background: var(--pine-tint);
@@ -715,8 +718,10 @@ button {
   color: var(--pine-ink);
 }
 .chk input {
-  accent-color: var(--pine);
   flex: none;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--pine);
 }
 .qty-input {
   width: 52px;
