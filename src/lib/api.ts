@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
-import type { Balance, Expense, LaundryConfig, Member, Task, Uuid } from './types'
+import { isPastLocalDate } from './time'
+import type { Balance, Dish, DishIngredient, Expense, Ingredient, LaundryConfig, Member, Task, Uuid } from './types'
 
 // ---------- Auth ----------
 export async function signIn(email: string, password: string) {
@@ -354,4 +355,148 @@ export async function settleUp(args: {
 }) {
   const { error } = await supabase.from('settlements').insert(args)
   if (error) throw error
+}
+
+// ---------- 食材 ----------
+export async function listIngredients(householdId: Uuid): Promise<Ingredient[]> {
+  const { data, error } = await supabase
+    .from('ingredients')
+    .select('*')
+    .eq('household_id', householdId)
+    .order('purchased_at', { ascending: true }) // 舊→新（已於 2026-07-12 確認排序方向）
+  if (error) throw error
+  return data as Ingredient[]
+}
+
+export interface NewIngredient {
+  household_id: Uuid
+  name: string
+  purchased_at: string // YYYY-MM-DD
+  total_portions: number
+  created_by: Uuid
+}
+
+export async function createIngredient(i: NewIngredient) {
+  const { error } = await supabase.from('ingredients').insert({
+    household_id: i.household_id,
+    name: i.name,
+    purchased_at: i.purchased_at,
+    total_portions: i.total_portions,
+    remaining_portions: i.total_portions,
+    created_by: i.created_by,
+  })
+  if (error) throw error
+}
+
+// ---------- 煮菜規劃 ----------
+export interface DishShortage {
+  ingredient_id: Uuid
+  name: string
+  requested: number
+  available: number
+}
+
+// 份量不足時，create_dish / update_dish_ingredients 這兩個 RPC 會丟出
+// 'SHORTAGE:' 開頭 + JSON 陣列的錯誤訊息（見 migration_v1_7/v1_8），這裡轉成結構化物件，
+// 對應 Task List 2.4。
+export class InsufficientPortionsError extends Error {
+  shortages: DishShortage[]
+  constructor(shortages: DishShortage[]) {
+    super('食材份量不足')
+    this.shortages = shortages
+  }
+}
+
+function parseShortageError(message: string): DishShortage[] | null {
+  const prefix = 'SHORTAGE:'
+  if (!message.startsWith(prefix)) return null
+  try {
+    return JSON.parse(message.slice(prefix.length)) as DishShortage[]
+  } catch {
+    return null
+  }
+}
+
+function rethrowShortageAware(error: { message: string }): never {
+  const shortages = parseShortageError(error.message)
+  if (shortages) throw new InsufficientPortionsError(shortages)
+  throw error
+}
+
+export async function listDishes(householdId: Uuid): Promise<Dish[]> {
+  const { data, error } = await supabase
+    .from('dishes')
+    .select('*')
+    .eq('household_id', householdId)
+    .order('planned_date', { ascending: true })
+  if (error) throw error
+  return data as Dish[]
+}
+
+export async function getDishIngredients(dishId: Uuid): Promise<DishIngredient[]> {
+  const { data, error } = await supabase.from('dish_ingredients').select('*').eq('dish_id', dishId)
+  if (error) throw error
+  return data as DishIngredient[]
+}
+
+export interface DishItem {
+  ingredient_id: Uuid
+  portions: number
+}
+
+// 一次排定一道菜：份量不足時整批擋下、不寫入任何資料，丟出 InsufficientPortionsError
+// （shortages 陣列列出所有不足的食材，不只第一個）。
+export async function createDish(args: {
+  household_id: Uuid
+  name: string
+  planned_date: string // YYYY-MM-DD
+  items: DishItem[]
+}): Promise<Uuid> {
+  const { data, error } = await supabase.rpc('create_dish', {
+    hh_id: args.household_id,
+    dish_name: args.name,
+    p_planned_date: args.planned_date,
+    items: args.items,
+  })
+  if (error) rethrowShortageAware(error)
+  return data as Uuid
+}
+
+// 編輯一道尚未完成的菜所用的食材：先退還舊分配、再依新清單重新分配（份數不足會整段回滾，
+// 舊分配也不會被退還掉）。
+export async function updateDishIngredients(dishId: Uuid, items: DishItem[]) {
+  const { error } = await supabase.rpc('update_dish_ingredients', {
+    p_dish_id: dishId,
+    items,
+  })
+  if (error) rethrowShortageAware(error)
+}
+
+// 取消一道尚未完成的菜：退還已分配的食材份數，並刪除該筆菜（cascade 移除分配明細）。
+// 只能取消 status='planned' 的菜；完成/過期後的自動刪除屬於 Task 4，不走這個函式。
+export async function cancelDish(dishId: Uuid) {
+  const { error } = await supabase.rpc('cancel_dish', { p_dish_id: dishId })
+  if (error) throw error
+}
+
+// 完成或過期的菜：直接刪除，不退還已分配的食材份數（份數在建立菜色時就已扣除，
+// 這裡只是移除紀錄；跟 cancelDish 的差異就在「有沒有退還份數」）。
+export async function deleteDish(dishId: Uuid) {
+  const { error } = await supabase.from('dishes').delete().eq('id', dishId)
+  if (error) throw error
+}
+
+// 使用者點選「完成」：依 AC，完成即自動刪除該道菜，不保留 done 狀態、不退還份數。
+export async function completeDish(dishId: Uuid) {
+  await deleteDish(dishId)
+}
+
+// 清掉「已過了當天」的菜（不退還份數）。依 Architect Review 建議在進站/查詢時即時計算，
+// 不使用排程 infra；「當天」判定見 isPastLocalDate()（src/lib/time.ts）。
+export async function sweepExpiredDishes(householdId: Uuid): Promise<void> {
+  const dishes = await listDishes(householdId)
+  const expired = dishes.filter((d) => d.status === 'planned' && isPastLocalDate(d.planned_date))
+  for (const d of expired) {
+    await deleteDish(d.id)
+  }
 }

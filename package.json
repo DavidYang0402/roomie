@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "deploy": "npm run build && gh-pages -d dist -t"
+    "deploy": "npm run build && gh-pages -d dist -t",
+    "test": "vitest run --exclude '**/*.integration.test.*'",
+    "test:integration": "vitest run src/lib/api.dish.integration.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
@@ -15,11 +17,14 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@testing-library/react": "^16.3.2",
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
     "gh-pages": "^6.1.1",
+    "jsdom": "^29.1.1",
     "typescript": "^5.5.4",
-    "vite": "^5.4.2"
+    "vite": "^5.4.2",
+    "vitest": "^4.1.10"
   }
 }

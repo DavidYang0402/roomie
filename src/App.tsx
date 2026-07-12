@@ -9,15 +9,17 @@ import { Home } from './components/Home'
 import { Tasks } from './components/Tasks'
 import { Laundry } from './components/Laundry'
 import { Money } from './components/Money'
+import { Cooking } from './components/Cooking'
 import { Settings } from './components/Settings'
 
-type Tab = 'home' | 'tasks' | 'laundry' | 'money' | 'settings'
+type Tab = 'home' | 'tasks' | 'laundry' | 'money' | 'cooking' | 'settings'
 
 const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'home', label: '首頁', icon: '⌂' },
   { key: 'tasks', label: '待辦', icon: '☑' },
   { key: 'laundry', label: '洗衣', icon: '⟳' },
   { key: 'money', label: '分帳', icon: '＄' },
+  { key: 'cooking', label: '煮菜', icon: '🍳' },
   { key: 'settings', label: '設定', icon: '⚙' },
 ]
 
@@ -135,6 +137,7 @@ export default function App() {
         {tab === 'tasks' && <Tasks />}
         {tab === 'laundry' && <Laundry />}
         {tab === 'money' && <Money />}
+        {tab === 'cooking' && <Cooking />}
         {tab === 'settings' && <Settings />}
       </main>
 

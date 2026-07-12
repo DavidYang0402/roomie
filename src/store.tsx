@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from './lib/supabase'
 import * as api from './lib/api'
-import type { Balance, Expense, LaundryConfig, Member, Task } from './lib/types'
+import type { Balance, Dish, Expense, Ingredient, LaundryConfig, Member, Task } from './lib/types'
 
 interface Store {
   session: Session | null
@@ -16,6 +16,8 @@ interface Store {
   expenses: Expense[]
   balances: Balance[]
   laundryConfig: LaundryConfig | null
+  ingredients: Ingredient[]
+  dishes: Dish[]
   refresh: () => Promise<void>
   reloadHousehold: () => void
   memberName: (id: string | null) => string
@@ -41,6 +43,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [balances, setBalances] = useState<Balance[]>([])
   const [laundryConfig, setLaundryConfig] = useState<LaundryConfig | null>(null)
+  const [ingredients, setIngredients] = useState<Ingredient[]>([])
+  const [dishes, setDishes] = useState<Dish[]>([])
 
   const householdIdRef = useRef<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
@@ -57,16 +61,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(async () => {
     const hid = householdIdRef.current
     if (!hid) return
-    const [tk, ld, ex, ba] = await Promise.all([
+    // 「進站/查詢時即時計算」過期的菜（Task 4.1）：refresh() 是全站唯一的「查詢時機」，
+    // 每次都掃一次，要放在 listDishes 前面才能讓被掃掉的菜不出現在結果裡。
+    await api.sweepExpiredDishes(hid)
+    const [tk, ld, ex, ba, ig, ds] = await Promise.all([
       api.listTasks(hid),
       api.listLaundry(hid),
       api.listExpenses(hid),
       api.getBalances(hid),
+      api.listIngredients(hid),
+      api.listDishes(hid),
     ])
     setTasks(tk)
     setLaundry(ld)
     setExpenses(ex)
     setBalances(ba)
+    setIngredients(ig)
+    setDishes(ds)
   }, [])
 
   // 登入後載入 household + 成員 + 資料
@@ -113,7 +124,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => refresh())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses' }, () => refresh())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'settlements' }, () => refresh())
-      .subscribe()
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ingredients' }, () => refresh())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'dishes' }, () => refresh())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'dish_ingredients' }, () => refresh())
+      .subscribe((status) => {
+        // 斷線重連補漏：每次頻道變成 SUBSCRIBED（含第一次訂閱、也含中斷後自動重連）都補一次
+        // REST 校正，避免斷線期間漏掉的事件讓畫面停在舊狀態。
+        if (status === 'SUBSCRIBED') refresh()
+      })
     return () => {
       supabase.removeChannel(channel)
     }
@@ -139,6 +157,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     expenses,
     balances,
     laundryConfig,
+    ingredients,
+    dishes,
     refresh,
     reloadHousehold: () => setReloadKey((k) => k + 1),
     memberName,

@@ -18,6 +18,14 @@ export function dateOf(ts: string | null): string | null {
   return toDateStr(new Date(ts))
 }
 
+// 純 date 欄位（YYYY-MM-DD，無時間，例如 dishes.planned_date）判斷是否已過了當天。
+// 直接比字串，不透過 new Date() 解析——date-only 字串會被 JS 當成 UTC 午夜，在 UTC 以西
+// 的時區會少算一天，跟 dueState()/dateOf() 用在 timestamptz 欄位時的情況不同，不能共用。
+// today 參數預設用現在的當地日期，測試時可傳入固定值讓結果可預期。
+export function isPastLocalDate(dateStr: string, today: string = todayStr()): boolean {
+  return dateStr < today
+}
+
 export type DueState = 'overdue' | 'today' | 'upcoming' | 'none'
 
 export function dueState(due_at: string | null): DueState {

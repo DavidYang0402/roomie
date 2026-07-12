@@ -51,3 +51,33 @@ export interface LaundryConfig {
   weekday_capacity: number
   weekend_capacity: number
 }
+
+export type DishStatus = 'planned' | 'done'
+
+export interface Ingredient {
+  id: Uuid
+  household_id: Uuid
+  name: string
+  purchased_at: string
+  total_portions: number
+  remaining_portions: number
+  created_by: Uuid
+  created_at: string
+}
+
+export interface Dish {
+  id: Uuid
+  household_id: Uuid
+  name: string
+  planned_date: string
+  status: DishStatus
+  created_by: Uuid
+  created_at: string
+  done_at: string | null
+}
+
+export interface DishIngredient {
+  dish_id: Uuid
+  ingredient_id: Uuid
+  portions_used: number
+}

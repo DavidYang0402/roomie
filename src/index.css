@@ -718,6 +718,19 @@ button {
   accent-color: var(--pine);
   flex: none;
 }
+.qty-input {
+  width: 52px;
+  flex: none;
+  padding: 4px 6px;
+  text-align: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.qty-input:focus {
+  outline: 2px solid var(--pine-tint);
+  border-color: var(--pine);
+}
 .preview {
   background: var(--amber-tint);
   color: #7c5a20;
