@@ -13,8 +13,10 @@ import {
 } from '../lib/api'
 import type { DishItem } from '../lib/api'
 import { todayStr, isPastLocalDate } from '../lib/time'
-import { Button, Empty, Modal } from './ui'
+import { Button, Empty, Modal, Segmented } from './ui'
 import type { Dish, Ingredient } from '../lib/types'
+
+type CookingSubTab = 'ingredients' | 'dishes'
 
 type DishDueState = 'overdue' | 'today' | 'upcoming'
 function dishDueState(plannedDate: string): DishDueState {
@@ -40,6 +42,7 @@ export function Cooking() {
   // ingredients/dishes 現在是全域 store 狀態(Task 6):由 store.tsx 的 refresh() 統一抓取
   // (含 sweepExpiredDishes()),並訂閱 Realtime 自動更新,這個元件不再自己管一份本地狀態。
   const { household, userId, ingredients, dishes, refresh } = useStore()
+  const [sub, setSub] = useState<CookingSubTab>('ingredients')
   const [addingIngredient, setAddingIngredient] = useState(false)
   const [editingIngredient, setEditingIngredient] = useState<Ingredient | null>(null)
   const [addingDish, setAddingDish] = useState(false)
@@ -67,81 +70,97 @@ export function Cooking() {
   return (
     <div className="view">
       <div className="view-head">
-        <h1>食材</h1>
-        <Button onClick={() => setAddingIngredient(true)}>＋ 新增食材</Button>
-      </div>
-
-      <div className="rows tall">
-        {ingredients.length === 0 ? (
-          <Empty>還沒有食材。按「新增食材」記錄買了什麼、可以用幾份。</Empty>
+        <h1>煮菜</h1>
+        {sub === 'ingredients' ? (
+          <Button onClick={() => setAddingIngredient(true)}>＋ 新增食材</Button>
         ) : (
-          ingredients.map((i) => (
-            <div className="row" key={i.id}>
-              <div className="row-main">
-                <div>
-                  <div className="row-title">
-                    {i.name}
-                    {i.in_use && <span className="tag">使用中</span>}
-                  </div>
-                  <div className="row-sub">
-                    {i.purchased_at} 購入 · 剩 {i.remaining_portions} / {i.total_portions} 份
-                  </div>
-                </div>
-              </div>
-              <div className="row-actions">
-                <button className="link-quiet inline" aria-label="編輯" onClick={() => setEditingIngredient(i)}>
-                  編輯
-                </button>
-                {!i.in_use && (
-                  <button className="link-danger" aria-label="刪除" onClick={() => removeIngredient(i)}>
-                    刪
-                  </button>
-                )}
-              </div>
-            </div>
-          ))
+          <Button onClick={() => setAddingDish(true)} disabled={ingredients.length === 0}>
+            ＋ 排菜
+          </Button>
         )}
       </div>
 
-      <div className="view-head" style={{ marginTop: 28 }}>
-        <h1>煮菜規劃</h1>
-        <Button onClick={() => setAddingDish(true)} disabled={ingredients.length === 0}>
-          ＋ 排菜
-        </Button>
+      <div className="subtabs">
+        <Segmented<CookingSubTab>
+          value={sub}
+          onChange={setSub}
+          options={[
+            { value: 'ingredients', label: '食材' },
+            { value: 'dishes', label: '煮菜規劃' },
+          ]}
+        />
       </div>
-      {ingredients.length === 0 && <p className="hint">先新增食材，才能排菜。</p>}
 
-      <div className="rows tall">
-        {dishes.length === 0 ? (
-          <Empty>還沒有排定的菜。</Empty>
-        ) : (
-          dishes.map((d) => {
-            const state = dishDueState(d.planned_date)
-            return (
-              <div className="row" key={d.id}>
+      {sub === 'ingredients' && (
+        <div className="rows tall">
+          {ingredients.length === 0 ? (
+            <Empty>還沒有食材。按「新增食材」記錄買了什麼、可以用幾份。</Empty>
+          ) : (
+            ingredients.map((i) => (
+              <div className="row" key={i.id}>
                 <div className="row-main">
-                  <span className={`dot ${state}`} />
                   <div>
-                    <div className="row-title">{d.name}</div>
-                    <div className="row-sub">{d.planned_date}</div>
+                    <div className="row-title">
+                      {i.name}
+                      {i.in_use && <span className="tag">使用中</span>}
+                    </div>
+                    <div className="row-sub">
+                      {i.purchased_at} 購入 · 剩 {i.remaining_portions} / {i.total_portions} 份
+                    </div>
                   </div>
                 </div>
                 <div className="row-actions">
-                  <button className="done-btn" onClick={() => complete(d)}>
-                    完成
-                  </button>
-                  <button className="link-quiet inline" aria-label="編輯" onClick={() => setEditingDish(d)}>
+                  <button className="link-quiet inline" aria-label="編輯" onClick={() => setEditingIngredient(i)}>
                     編輯
                   </button>
-                  <button className="link-danger" aria-label="取消" onClick={() => cancel(d)}>
-                    取消
-                  </button>
+                  {!i.in_use && (
+                    <button className="link-danger" aria-label="刪除" onClick={() => removeIngredient(i)}>
+                      刪
+                    </button>
+                  )}
                 </div>
               </div>
-            )
-          })
-        )}
-      </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {sub === 'dishes' && (
+        <>
+          {ingredients.length === 0 && <p className="hint">先到「食材」分頁新增食材，才能排菜。</p>}
+          <div className="rows tall">
+            {dishes.length === 0 ? (
+              <Empty>還沒有排定的菜。</Empty>
+            ) : (
+              dishes.map((d) => {
+                const state = dishDueState(d.planned_date)
+                return (
+                  <div className="row" key={d.id}>
+                    <div className="row-main">
+                      <span className={`dot ${state}`} />
+                      <div>
+                        <div className="row-title">{d.name}</div>
+                        <div className="row-sub">{d.planned_date}</div>
+                      </div>
+                    </div>
+                    <div className="row-actions">
+                      <button className="done-btn" onClick={() => complete(d)}>
+                        完成
+                      </button>
+                      <button className="link-quiet inline" aria-label="編輯" onClick={() => setEditingDish(d)}>
+                        編輯
+                      </button>
+                      <button className="link-danger" aria-label="取消" onClick={() => cancel(d)}>
+                        取消
+                      </button>
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
+        </>
+      )}
 
       {(addingIngredient || editingIngredient) && household && (
         <IngredientForm

@@ -3,8 +3,23 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#F6F4EF" />
+    <meta name="theme-color" content="#fafaf8" />
     <title>家務室友</title>
+    <script>
+      // 在 React 之前先套用主題,避免載入時「亮→暗」閃一下。
+      // key 與 theme-color 值需與 src/lib/theme.ts 保持一致。
+      (function () {
+        try {
+          var t = localStorage.getItem('roomie-theme')
+          if (t !== 'light' && t !== 'dark') {
+            t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+          }
+          if (t === 'dark') document.documentElement.setAttribute('data-theme', 'dark')
+          var m = document.querySelector('meta[name="theme-color"]')
+          if (m) m.setAttribute('content', t === 'dark' ? '#14161a' : '#fafaf8')
+        } catch (e) {}
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

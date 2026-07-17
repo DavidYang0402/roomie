@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '../store'
 import { getMyProfile, updateMyProfile, changePassword, signOut } from '../lib/api'
-import { Button } from './ui'
+import { currentTheme, setTheme, type Theme } from '../lib/theme'
+import { Button, Segmented } from './ui'
 
 export function Settings() {
   const { members, userId, reloadHousehold } = useStore()
@@ -32,6 +33,13 @@ export function Settings() {
     } finally {
       setSavingP(false)
     }
+  }
+
+  // --- 外觀（Light / Dark）---
+  const [theme, setThemeState] = useState<Theme>(currentTheme())
+  function pickTheme(t: Theme) {
+    setThemeState(t)
+    setTheme(t) // 立即套用 <html data-theme> 並記進 localStorage
   }
 
   // --- 變更密碼 ---
@@ -80,6 +88,24 @@ export function Settings() {
           <Button onClick={saveProfile} disabled={savingP || !name.trim()}>
             {savingP ? '儲存中…' : '儲存'}
           </Button>
+        </div>
+      </section>
+
+      <section className="settings-card">
+        <h2 className="settings-head">外觀</h2>
+        <div className="settings-row">
+          <div>
+            <div className="settings-row-title">主題</div>
+            <div className="muted small">淺色 / 深色，選擇會記住</div>
+          </div>
+          <Segmented<Theme>
+            value={theme}
+            onChange={pickTheme}
+            options={[
+              { value: 'light', label: '淺色' },
+              { value: 'dark', label: '深色' },
+            ]}
+          />
         </div>
       </section>
 

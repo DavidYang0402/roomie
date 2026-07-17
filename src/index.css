@@ -1,23 +1,72 @@
 :root {
-  --paper: #f6f4ef;
-  --surface: #ffffff;
-  --ink: #23231f;
-  --muted: #8a867c;
-  --line: #e7e3da;
-  --pine: #2f6b5e;
-  --pine-ink: #234f45;
-  --pine-tint: #e5efe9;
+  /* ---------- 顏色 · Light(預設)。Dark 見 [data-theme='dark'] ---------- */
+  /* 核心 6 色 */
+  --bg: #fafaf8; /* 微帶灰的白,長時間閱讀不刺眼 */
+  --card: #ffffff;
+  --primary: #2d5a4a; /* 沿用墨綠系,全站唯一品牌強調色 */
+  --text: #1a1a1a;
+  --text-secondary: #6b6b6b;
+  --border: #e5e5e0;
+
+  /* 主色延伸(選取淡底 / 淡底上的文字) */
+  --primary-tint: #e5efe9;
+  --primary-ink: #234f45;
+
+  /* 功能性狀態色 —— 逾期=coral、今天=amber,非裝飾撞色,Dark 為去飽和變體 */
   --amber: #d59340;
   --amber-tint: #f6ecd9;
+  --amber-ink: #7c5a20;
   --coral: #d16453;
   --coral-tint: #f7e3dd;
 
+  /* 中性填色(Segmented 軌道 / 個人標籤) */
+  --neutral-fill: #ece9e1;
+  --neutral-ink: #6f6a5f;
+
+  /* 覆蓋 / 半透明 */
+  --on-accent: #ffffff; /* 強調色填底上的文字 */
+  --topbar-bg: rgba(250, 250, 248, 0.85);
+  --scrim: rgba(35, 35, 31, 0.32);
+  --modal-shadow-color: rgba(35, 35, 31, 0.18);
+  --shadow: 0 1px 2px rgba(35, 35, 31, 0.05), 0 6px 20px rgba(35, 35, 31, 0.04);
+
   --radius: 14px;
   --radius-sm: 9px;
-  --shadow: 0 1px 2px rgba(35, 35, 31, 0.05), 0 6px 20px rgba(35, 35, 31, 0.04);
 
   --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang TC', 'Noto Sans TC',
     'Microsoft JhengHei', 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* ---------- 顏色 · Dark ----------
+   背景避免純黑(深灰藍);卡片比背景亮一階,靠層次感浮起來製造科技感;
+   強調色提亮補償對比;狀態色去飽和,不走霓虹。 */
+[data-theme='dark'] {
+  --bg: #14161a;
+  --card: #1e2126;
+  --primary: #4a9b7f;
+  --text: #ededed;
+  --text-secondary: #9a9a9a;
+  --border: #2a2d33;
+
+  --primary-tint: #223029;
+  --primary-ink: #8fcdb5;
+
+  --amber: #e0a24a;
+  --amber-tint: #2e2a20;
+  --amber-ink: #e0b872;
+  --coral: #da6551; /* 較亮的珊瑚,讓小徽章上的深色 ink 也過得了 AA */
+  --coral-tint: #2e211e;
+
+  --neutral-fill: #191c21;
+  --neutral-ink: #b0b0b0;
+
+  /* Dark 模式的強調色(primary #4a9b7f / coral)偏亮,白字對比不足(~3.3),
+     改用深色 ink,對比 ~5:1(AA)。Light 模式強調色是深墨綠,仍維持白字。 */
+  --on-accent: #0f1a15;
+  --topbar-bg: rgba(20, 22, 26, 0.85);
+  --scrim: rgba(0, 0, 0, 0.55);
+  --modal-shadow-color: rgba(0, 0, 0, 0.5);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 20px rgba(0, 0, 0, 0.4);
 }
 
 * {
@@ -34,8 +83,8 @@ body,
 
 body {
   font-family: var(--sans);
-  background: var(--paper);
-  color: var(--ink);
+  background: var(--bg);
+  color: var(--text);
   -webkit-font-smoothing: antialiased;
   line-height: 1.5;
 }
@@ -71,9 +120,9 @@ button {
   align-items: center;
   gap: 16px;
   padding: 14px 20px;
-  background: rgba(246, 244, 239, 0.85);
+  background: var(--topbar-bg);
   backdrop-filter: saturate(1.4) blur(8px);
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--border);
 }
 .topbar-name {
   font-weight: 650;
@@ -83,12 +132,12 @@ button {
   margin-left: auto;
   background: none;
   border: none;
-  color: var(--muted);
+  color: var(--text-secondary);
   cursor: pointer;
   font-size: 0.9rem;
 }
 .link-quiet:hover {
-  color: var(--ink);
+  color: var(--text);
 }
 
 .desktop-tabs {
@@ -104,13 +153,13 @@ button {
   border: none;
   padding: 6px 12px;
   border-radius: 999px;
-  color: var(--muted);
+  color: var(--text-secondary);
   cursor: pointer;
   font-weight: 550;
 }
 .tab.on {
-  background: var(--pine-tint);
-  color: var(--pine-ink);
+  background: var(--primary-tint);
+  color: var(--primary-ink);
 }
 
 .content {
@@ -126,8 +175,8 @@ button {
   right: 0;
   z-index: 30;
   display: flex;
-  background: var(--surface);
-  border-top: 1px solid var(--line);
+  background: var(--card);
+  border-top: 1px solid var(--border);
   padding-bottom: env(safe-area-inset-bottom);
 }
 .navitem {
@@ -139,11 +188,11 @@ button {
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  color: var(--muted);
+  color: var(--text-secondary);
   cursor: pointer;
 }
 .navitem.on {
-  color: var(--pine);
+  color: var(--primary);
 }
 .navicon {
   position: relative;
@@ -162,7 +211,7 @@ button {
   padding: 0 4px;
   border-radius: 999px;
   background: var(--coral);
-  color: #fff;
+  color: var(--on-accent);
   font-size: 0.66rem;
   font-weight: 700;
   line-height: 16px;
@@ -205,7 +254,7 @@ button {
   margin-bottom: 22px;
 }
 .eyebrow {
-  color: var(--muted);
+  color: var(--text-secondary);
   font-size: 0.85rem;
   margin-bottom: 4px;
 }
@@ -216,7 +265,7 @@ button {
   letter-spacing: -0.01em;
 }
 .home-line strong {
-  color: var(--pine);
+  color: var(--primary);
 }
 .home-line .hot {
   color: var(--coral);
@@ -233,12 +282,12 @@ button {
   font-weight: 650;
   text-transform: none;
   letter-spacing: 0.02em;
-  color: var(--muted);
+  color: var(--text-secondary);
   margin-bottom: 8px;
 }
 .section-head .count {
-  background: var(--line);
-  color: var(--ink);
+  background: var(--border);
+  color: var(--text);
   border-radius: 999px;
   padding: 0 7px;
   font-size: 0.72rem;
@@ -257,8 +306,8 @@ button {
   display: flex;
   align-items: center;
   gap: 12px;
-  background: var(--surface);
-  border: 1px solid var(--line);
+  background: var(--card);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 12px 14px;
   box-shadow: var(--shadow);
@@ -278,7 +327,7 @@ button {
   flex-wrap: wrap;
 }
 .row-sub {
-  color: var(--muted);
+  color: var(--text-secondary);
   font-size: 0.82rem;
   margin-top: 1px;
 }
@@ -293,7 +342,7 @@ button {
   height: 9px;
   border-radius: 50%;
   flex: none;
-  background: var(--muted);
+  background: var(--text-secondary);
 }
 .dot.overdue {
   background: var(--coral);
@@ -302,10 +351,10 @@ button {
   background: var(--amber);
 }
 .dot.upcoming {
-  background: var(--pine);
+  background: var(--primary);
 }
 .dot.none {
-  background: var(--line);
+  background: var(--border);
 }
 
 .tag {
@@ -313,42 +362,42 @@ button {
   font-weight: 650;
   padding: 1px 7px;
   border-radius: 6px;
-  background: var(--line);
-  color: var(--muted);
+  background: var(--border);
+  color: var(--text-secondary);
 }
 .tag.public {
-  background: var(--pine-tint);
-  color: var(--pine-ink);
+  background: var(--primary-tint);
+  color: var(--primary-ink);
 }
 .tag.personal {
-  background: #ece9e1;
-  color: #6f6a5f;
+  background: var(--neutral-fill);
+  color: var(--neutral-ink);
 }
 .tag.laundry {
   background: var(--amber-tint);
-  color: #97671f;
+  color: var(--amber-ink);
 }
 
 .check {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  border: 1.5px solid var(--line);
-  background: var(--surface);
-  color: var(--pine);
+  border: 1.5px solid var(--border);
+  background: var(--card);
+  color: var(--primary);
   cursor: pointer;
   font-size: 0.95rem;
   flex: none;
   transition: all 0.12s ease;
 }
 .check:hover {
-  border-color: var(--pine);
-  background: var(--pine-tint);
+  border-color: var(--primary);
+  background: var(--primary-tint);
 }
 .link-danger {
   background: none;
   border: none;
-  color: var(--muted);
+  color: var(--text-secondary);
   cursor: pointer;
   font-size: 0.82rem;
 }
@@ -360,13 +409,13 @@ button {
   font-weight: 650;
 }
 .empty {
-  color: var(--muted);
+  color: var(--text-secondary);
   padding: 18px 4px;
   font-size: 0.92rem;
 }
 .note {
   background: var(--amber-tint);
-  color: #7c5a20;
+  color: var(--amber-ink);
   border-radius: var(--radius-sm);
   padding: 10px 13px;
   font-size: 0.85rem;
@@ -376,7 +425,7 @@ button {
 /* ---------- Segmented ---------- */
 .segmented {
   display: inline-flex;
-  background: #ece9e1;
+  background: var(--neutral-fill);
   border-radius: 999px;
   padding: 3px;
   gap: 2px;
@@ -386,15 +435,19 @@ button {
   background: none;
   padding: 6px 14px;
   border-radius: 999px;
-  color: var(--muted);
+  color: var(--text-secondary);
   cursor: pointer;
   font-size: 0.88rem;
   font-weight: 550;
 }
 .seg.on {
-  background: var(--surface);
-  color: var(--ink);
+  background: var(--card);
+  color: var(--text);
   box-shadow: var(--shadow);
+}
+/* 煮菜分頁底下的「食材 / 煮菜規劃」子頁籤,沿用 Segmented,只加上下間距 */
+.subtabs {
+  margin-bottom: 16px;
 }
 
 /* ---------- Buttons ---------- */
@@ -411,23 +464,23 @@ button {
   cursor: default;
 }
 .btn-primary {
-  background: var(--pine);
-  color: #fff;
+  background: var(--primary);
+  color: var(--on-accent);
 }
 .btn-primary:hover:not(:disabled) {
   filter: brightness(1.06);
 }
 .btn-ghost {
   background: transparent;
-  color: var(--muted);
-  border: 1px solid var(--line);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
 }
 .btn-ghost:hover {
-  color: var(--ink);
+  color: var(--text);
 }
 .btn-quiet {
-  background: var(--pine-tint);
-  color: var(--pine-ink);
+  background: var(--primary-tint);
+  color: var(--primary-ink);
   padding: 7px 13px;
 }
 .btn-quiet:hover {
@@ -435,13 +488,13 @@ button {
 }
 .btn-danger {
   background: var(--coral);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 /* ---------- Balance card ---------- */
 .balance-card {
-  background: var(--surface);
-  border: 1px solid var(--line);
+  background: var(--card);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   padding: 22px;
@@ -449,10 +502,10 @@ button {
   margin-bottom: 10px;
 }
 .balance-line {
-  color: var(--muted);
+  color: var(--text-secondary);
 }
 .balance-line .who {
-  color: var(--ink);
+  color: var(--text);
   font-weight: 650;
 }
 .balance-amount {
@@ -465,7 +518,7 @@ button {
 .balance-clear {
   font-size: 1.15rem;
   font-weight: 650;
-  color: var(--pine);
+  color: var(--primary);
 }
 
 /* ---------- Modal ---------- */
@@ -473,20 +526,36 @@ button {
   position: fixed;
   inset: 0;
   z-index: 50;
-  background: rgba(35, 35, 31, 0.32);
+  background: var(--scrim);
   display: flex;
   align-items: flex-end;
   justify-content: center;
   padding: 0;
 }
 .modal {
-  background: var(--surface);
+  background: var(--card);
   width: 100%;
   max-width: 460px;
   border-radius: 18px 18px 0 0;
   padding: 20px 20px calc(24px + env(safe-area-inset-bottom));
-  box-shadow: 0 -8px 40px rgba(35, 35, 31, 0.18);
+  box-shadow: 0 -8px 40px var(--modal-shadow-color);
   animation: sheet 0.18s ease-out;
+  /* 讓彈窗永遠不會超出畫面：頭(modal-head)固定、內容(modal-body)必要時捲動，
+     底部按鈕(modal-actions)在 body 裡但因為食材清單自己有 max-height，正常情況 body
+     不需要捲、按鈕維持固定;body 捲動只是極端矮螢幕的保險。 */
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 8px);
+  max-height: calc(100dvh - 8px);
+  overflow: hidden;
+}
+.modal-head {
+  flex: none;
+}
+.modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
 }
 @keyframes sheet {
   from {
@@ -506,7 +575,7 @@ button {
 .modal-x {
   background: none;
   border: none;
-  color: var(--muted);
+  color: var(--text-secondary);
   cursor: pointer;
   font-size: 1rem;
 }
@@ -536,23 +605,23 @@ button {
 .field > span {
   font-size: 0.85rem;
   font-weight: 550;
-  color: var(--muted);
+  color: var(--text-secondary);
 }
 .field input:not([type='checkbox']),
 .field select {
-  border: 1px solid var(--line);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 10px 12px;
-  background: var(--surface);
+  background: var(--card);
   width: 100%;
 }
 .field input:not([type='checkbox']):focus,
 .field select:focus {
-  outline: 2px solid var(--pine-tint);
-  border-color: var(--pine);
+  outline: 2px solid var(--primary-tint);
+  border-color: var(--primary);
 }
 .hint {
-  color: var(--muted);
+  color: var(--text-secondary);
   font-size: 0.8rem;
 }
 .error {
@@ -564,7 +633,7 @@ button {
   font-size: 0.8rem;
 }
 .muted {
-  color: var(--muted);
+  color: var(--text-secondary);
 }
 
 /* ---------- Login ---------- */
@@ -578,8 +647,8 @@ button {
 .login-card {
   width: 100%;
   max-width: 380px;
-  background: var(--surface);
-  border: 1px solid var(--line);
+  background: var(--card);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   padding: 30px 26px;
@@ -593,8 +662,8 @@ button {
   width: 38px;
   height: 38px;
   border-radius: 11px;
-  background: var(--pine);
-  color: #fff;
+  background: var(--primary);
+  color: var(--on-accent);
   display: grid;
   place-items: center;
   font-size: 1.35rem;
@@ -603,7 +672,7 @@ button {
   font-size: 1.4rem;
 }
 .brand-sub {
-  color: var(--muted);
+  color: var(--text-secondary);
   margin: 10px 0 22px;
   font-size: 0.92rem;
 }
@@ -618,7 +687,7 @@ button {
   gap: 8px;
 }
 .login-sent strong {
-  color: var(--pine-ink);
+  color: var(--primary-ink);
 }
 
 /* ---------- Misc ---------- */
@@ -641,8 +710,8 @@ button {
 .spinner {
   width: 30px;
   height: 30px;
-  border: 3px solid var(--line);
-  border-top-color: var(--pine);
+  border: 3px solid var(--border);
+  border-top-color: var(--primary);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }
@@ -667,17 +736,17 @@ button {
   text-align: center;
   padding: 16px;
   margin-bottom: 14px;
-  background: var(--pine-tint);
-  color: var(--pine-ink);
+  background: var(--primary-tint);
+  color: var(--primary-ink);
   border-radius: var(--radius);
   font-variant-numeric: tabular-nums;
 }
 
 /* ---------- 完成 button (取代打勾) ---------- */
 .done-btn {
-  border: 1.5px solid var(--pine);
-  background: var(--surface);
-  color: var(--pine);
+  border: 1.5px solid var(--primary);
+  background: var(--card);
+  color: var(--primary);
   border-radius: 999px;
   padding: 6px 16px;
   font-weight: 600;
@@ -686,8 +755,8 @@ button {
   transition: all 0.12s ease;
 }
 .done-btn:hover {
-  background: var(--pine);
-  color: #fff;
+  background: var(--primary);
+  color: var(--on-accent);
 }
 
 /* ---------- 分攤者勾選 ---------- */
@@ -701,7 +770,7 @@ button {
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: 0.92rem;
@@ -713,15 +782,15 @@ button {
   overflow-wrap: anywhere;
 }
 .chk.on {
-  background: var(--pine-tint);
-  border-color: var(--pine);
-  color: var(--pine-ink);
+  background: var(--primary-tint);
+  border-color: var(--primary);
+  color: var(--primary-ink);
 }
 .chk input {
   flex: none;
   width: 18px;
   height: 18px;
-  accent-color: var(--pine);
+  accent-color: var(--primary);
 }
 /* ---------- 排菜：食材選擇 ----------
    刻意獨立於 .chk（分帳的勾選清單也在用，不能共用結構），而且 qty-input 是
@@ -739,6 +808,12 @@ button {
   flex-direction: column;
   gap: 8px;
   width: 100%;
+  /* 食材一多不再無限往下長：清單自己捲動，彈窗標題與底部按鈕維持固定看得到。
+     用 vh 讓上限跟著螢幕高度縮放，矮螢幕也不會把按鈕擠出畫面。padding 留一點讓
+     選取中的 qty-input 的 focus 外框不會被捲動裁切。 */
+  max-height: min(46vh, 340px);
+  overflow-y: auto;
+  padding: 2px;
 }
 .ing-pick-row {
   display: flex;
@@ -746,15 +821,15 @@ button {
   flex-wrap: wrap;
   gap: 8px 10px;
   padding: 10px 12px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   font-size: 0.92rem;
   width: 100%;
 }
 .ing-pick-row.on {
-  background: var(--pine-tint);
-  border-color: var(--pine);
-  color: var(--pine-ink);
+  background: var(--primary-tint);
+  border-color: var(--primary);
+  color: var(--primary-ink);
 }
 .ing-pick-main {
   display: flex;
@@ -769,7 +844,7 @@ button {
   flex: none;
   width: 18px;
   height: 18px;
-  accent-color: var(--pine);
+  accent-color: var(--primary);
 }
 .ing-pick-text {
   display: flex;
@@ -787,17 +862,17 @@ button {
   flex: none;
   padding: 6px 8px;
   text-align: center;
-  border: 1px solid var(--line);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: var(--surface);
+  background: var(--card);
 }
 .modal .ing-pick-row .qty-input:focus {
-  outline: 2px solid var(--pine-tint);
-  border-color: var(--pine);
+  outline: 2px solid var(--primary-tint);
+  border-color: var(--primary);
 }
 .preview {
   background: var(--amber-tint);
-  color: #7c5a20;
+  color: var(--amber-ink);
   border-radius: var(--radius-sm);
   padding: 10px 13px;
   font-size: 0.9rem;
@@ -818,8 +893,8 @@ button {
 
 /* ---------- Settings ---------- */
 .settings-card {
-  background: var(--surface);
-  border: 1px solid var(--line);
+  background: var(--card);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   padding: 18px;
@@ -828,7 +903,7 @@ button {
 .settings-head {
   font-size: 0.82rem;
   font-weight: 650;
-  color: var(--muted);
+  color: var(--text-secondary);
   margin-bottom: 14px;
 }
 .settings-actions {
@@ -837,12 +912,23 @@ button {
   justify-content: flex-end;
   gap: 12px;
 }
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.settings-row-title {
+  font-weight: 550;
+  margin-bottom: 2px;
+}
 .avatar {
   width: 38px;
   height: 38px;
   border-radius: 50%;
-  background: var(--pine-tint);
-  color: var(--pine-ink);
+  background: var(--primary-tint);
+  color: var(--primary-ink);
   display: grid;
   place-items: center;
   font-weight: 700;
